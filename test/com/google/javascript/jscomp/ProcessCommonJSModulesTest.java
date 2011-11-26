@@ -46,4 +46,9 @@ public class ProcessCommonJSModulesTest extends CompilerTestCase {
     test("var name = require('name'); exports.foo = 1;", "goog.provide('module$test'); var module$test = {}; goog.require('module$name'); var name$$module$test = module$name; module$test.foo = 1;if(module$test.module$exports)module$test=module$test.module$exports");
     test("var name = require('name'); module.exports = function() {};", "goog.provide('module$test'); var module$test = {}; goog.require('module$name'); var name$$module$test = module$name; module$test.module$exports = function() {};if(module$test.module$exports)module$test=module$test.module$exports");
   }
+  
+  public void testVarRenaming() {
+    setFilename("test");
+    test("var a = 1, b = 2; (function() { var a; b = 4})()", "goog.provide('module$test'); var module$test = {}; var a$$module$test = 1, b$$module$test = 2; (function() { var a; b$$module$test = 4})(); if(module$test.module$exports)module$test=module$test.module$exports");
+  }
 }
