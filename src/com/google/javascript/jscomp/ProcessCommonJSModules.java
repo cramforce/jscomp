@@ -91,6 +91,14 @@ class ProcessCommonJSModules implements CompilerPass {
         );
         compiler.reportCodeChange();
       }
+      
+      if (n.isGetProp() && 
+          "module".equals( n.getChildAtIndex(0).getString()) &&
+          "exports".equals(n.getChildAtIndex(1).getString())) {
+        String moduleName = guessCJSModuleName(n.getSourceFileName());
+        n.getChildAtIndex(0).setString(moduleName);
+        n.getChildAtIndex(1).setString("module$exports");
+      }
     }
     
     Node getCurrentScriptNode(Node n) {
