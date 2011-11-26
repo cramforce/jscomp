@@ -59,22 +59,46 @@ class TransformAMDToCJSModule implements CompilerPass {
         int i = 0;
         Node paramList = callback.getChildAtIndex(1);
         Node context = parent.getParent(); // Removes EXPR_RESULT around define call;
-        for (Node c : requiresNode.children()) {
-          String moduleName = c.getString();
-          Node aliasNode = paramList.getChildAtIndex(i++);
+        for (Node aliasNode : paramList.children()) {
+          
+          String moduleName = null;
+          Node modNode = requiresNode.getChildAtIndex(i++);
+          if (modNode != null) {
+            moduleName = modNode.getString();
+          }
           if (aliasNode != null) {
             String aliasName = aliasNode.getString();
-            Node call = IR.call(IR.name("require"), IR.string(moduleName));
-            context.addChildToFront(
-                IR.var(IR.name(aliasName), 
-                    call).copyInformationFromForTree(aliasNode));
+            if (moduleName != null) {
+              context.addChildToFront(
+                  IR.var(IR.name(aliasName), 
+                      IR.call(IR.name("require"), IR.string(moduleName))).copyInformationFromForTree(aliasNode));
+            } else {
+              context.addChildToFront(
+                  IR.var(IR.name(aliasName)).copyInformationFromForTree(aliasNode));
+            }
           }
         }
+        
+        Node callbackBlock = callback.getChildAtIndex(2);
+        
+        NodeTraversal.traverse(compiler, callbackBlock, new NodeTraversal.AbstractShallowCallback() {
+          @Override
+          public void visit(NodeTraversal t, Node n, Node parent) {
+            if (n.isReturn()) {
+              Node retVal = n.getFirstChild();
+              n.removeChild(retVal);
+              parent.replaceChild(n, IR.exprResult(
+                  IR.assign(
+                      IR.getprop(IR.name("module"), IR.string("exports")).copyInformationFromForTree(n),
+                      retVal).copyInformationFrom(n)).copyInformationFrom(n));
+            }
+          }
+        });
         
         int curIndex = context.getIndexOfChild(parent);
         context.removeChild(parent);
         Node before = context.getChildAtIndex(curIndex);
-        for (Node body : callback.getChildAtIndex(2).children()) {
+        for (Node body : callbackBlock.children()) {
           body.getParent().removeChild(body);
           if (before != null) {
             context.addChildBefore(body, before);
