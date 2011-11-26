@@ -64,19 +64,12 @@ class ProcessCommonJSModules implements CompilerPass {
         script.addChildToFront(IR.exprResult(
             IR.call(IR.getprop(IR.name("goog"), IR.string("require")), IR.string(moduleName))
         ).copyInformationFromForTree(n));
-        
-        if (t.getScope().isGlobal()) {
-          String alias = parent.getString();
-          String suffix = guessCJSModuleName(script.getSourceFileName());
-          NodeTraversal.traverse(compiler, script, new RenameVarsCallback(alias, alias + "$$" + suffix));
-        }
         compiler.reportCodeChange();
       }
       
       if (n.isScript()) {
         String moduleName = guessCJSModuleName(n.getSourceFileName());
         n.addChildToFront(IR.var(IR.name(moduleName), IR.objectlit()).copyInformationFromForTree(n));
-        NodeTraversal.traverse(compiler, n, new RenameVarsCallback("exports", moduleName));
         n.addChildToFront(IR.exprResult(
             IR.call(IR.getprop(IR.name("goog"), IR.string("provide")), IR.string(moduleName))
         ).copyInformationFromForTree(n));
@@ -89,6 +82,10 @@ class ProcessCommonJSModules implements CompilerPass {
                         IR.assign(IR.name(moduleName), moduleExportsProp.cloneTree())))).
             copyInformationFromForTree(n)
         );
+        
+        // Rename vars to not conflict in global scope.
+        NodeTraversal.traverse(compiler, n, new SuffixVarsCallback(moduleName));
+        
         compiler.reportCodeChange();
       }
       
@@ -111,21 +108,30 @@ class ProcessCommonJSModules implements CompilerPass {
     }
   }
   
-  private class RenameVarsCallback
+  private class SuffixVarsCallback
       extends AbstractPostOrderCallback {
     
-    private final String from;
-    private final String to;
+    private final String suffix;
     
-    public RenameVarsCallback(String from, String to) {
-      this.from = from;
-      this.to = to;
+    public SuffixVarsCallback(String suffix) {
+      this.suffix = suffix;
     }
 
     @Override
     public void visit(NodeTraversal t, Node n, Node parent) {
-      if (n.isName() && from.equals(n.getString())) {
-        n.setString(to);
+      if (n.isName()) {
+        String name = n.getString();
+        if (suffix.equals(name)) {
+          return;
+        }
+        if ("exports".equals(name)) {
+          n.setString(suffix);
+        } else {
+          Scope.Var var = t.getScope().getVar(name);
+          if (var != null && var.isGlobal()) {
+            n.setString(name + "$$" + suffix);
+          }
+        }
       }
     }
   }
