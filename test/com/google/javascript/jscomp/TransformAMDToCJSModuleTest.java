@@ -37,6 +37,8 @@ public class TransformAMDToCJSModuleTest extends CompilerTestCase {
 
   public void testRewrite() {
     test("define(['foo', 'bar'], function(foo, bar) { foo(bar); bar+1; })", "var bar=require(\"bar\");var foo=require(\"foo\");foo(bar);bar+1");
+    test("define(['foo', 'bar'], function(foo, bar, baz) { foo(bar); bar+1; })", "var baz;var bar=require(\"bar\");var foo=require(\"foo\");foo(bar);bar+1");
+    test("define(['foo', 'bar'], function(foo, bar) { return { test: 1 } })", "var bar=require(\"bar\");var foo=require(\"foo\");module.exports={test:1}");
   }
   
 }
