@@ -302,6 +302,10 @@ public class CommandLineRunner extends
         + "PRETTY_PRINT, PRINT_INPUT_DELIMITER")
     private List<FormattingOption> formatting = Lists.newArrayList();
 
+    @Option(name = "--process_amd_and_cjs_modules",
+        usage = "Processes AMD and CJS modules.")
+    private String process_amd_and_cjs_modules = null;
+    
     @Option(name = "--process_closure_primitives",
         handler = BooleanOptionHandler.class,
         usage = "Processes built-ins from the Closure library, such as "
@@ -619,6 +623,13 @@ public class CommandLineRunner extends
           "Version: " + config.getString("compiler.version") + "\n" +
           "Built on: " + config.getString("compiler.date"));
       err.flush();
+    }
+    
+    if (flags.process_amd_and_cjs_modules != null) {
+      String moduleName = ProcessCommonJSModules.toModuleName(flags.process_amd_and_cjs_modules);
+      flags.process_closure_primitives = true;
+      flags.manage_closure_dependencies = true;
+      flags.closure_entry_point = Lists.newArrayList(moduleName);
     }
 
     if (!isConfigValid || flags.display_help) {
