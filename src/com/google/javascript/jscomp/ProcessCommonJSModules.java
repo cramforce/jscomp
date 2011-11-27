@@ -15,8 +15,12 @@
  */
 package com.google.javascript.jscomp;
 
+import java.util.List;
+
+import com.google.common.collect.Lists;
 import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
 import com.google.javascript.rhino.IR;
+import com.google.javascript.rhino.InputId;
 import com.google.javascript.rhino.Node;
 
 /**
@@ -26,6 +30,7 @@ class ProcessCommonJSModules implements CompilerPass {
 
   private final AbstractCompiler compiler;
   private final String filenamePrefix;
+  private JSModule module;
   
   ProcessCommonJSModules(AbstractCompiler compiler, String filenamePrefix) {
     this.compiler = compiler;
@@ -44,8 +49,12 @@ class ProcessCommonJSModules implements CompilerPass {
     return toModuleName(filename);
   }
   
-  private String toModuleName(String filename) {
-    return "module$" + filename.replaceAll("\\/", "\\$").replace("\\.js$", "");
+  public JSModule getModule() {
+    return module;
+  }
+  
+  public static String toModuleName(String filename) {
+    return "module$" + filename.replaceAll("\\/", "\\$").replaceAll("\\.js$", "");
   }
 
   /**
@@ -61,6 +70,8 @@ class ProcessCommonJSModules implements CompilerPass {
         Node moduleRef = IR.name(moduleName).srcref(n);
         parent.replaceChild(n, moduleRef);
         Node script = getCurrentScriptNode(parent);
+        System.out.println("Require " + moduleName);
+        compiler.getInput(script.getInputId()).addRequire(moduleName);
         script.addChildToFront(IR.exprResult(
             IR.call(IR.getprop(IR.name("goog"), IR.string("require")), IR.string(moduleName))
         ).copyInformationFromForTree(n));
@@ -70,6 +81,12 @@ class ProcessCommonJSModules implements CompilerPass {
       if (n.isScript()) {
         String moduleName = guessCJSModuleName(n.getSourceFileName());
         n.addChildToFront(IR.var(IR.name(moduleName), IR.objectlit()).copyInformationFromForTree(n));
+        System.out.println("Provide " + moduleName);
+        CompilerInput ci = compiler.getInput(n.getInputId());
+        ci.addProvide(moduleName);
+        JSModule m = new JSModule(moduleName);
+        m.add(ci);
+        module = m;
         n.addChildToFront(IR.exprResult(
             IR.call(IR.getprop(IR.name("goog"), IR.string("provide")), IR.string(moduleName))
         ).copyInformationFromForTree(n));

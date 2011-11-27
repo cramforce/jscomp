@@ -185,6 +185,16 @@ public class CompilerInput
       return ImmutableList.<String>of();
     }
   }
+  
+  public void addProvide(String provide) {
+    getProvides();
+    provides.add(provide);
+  }
+  
+  public void addRequire(String require) {
+    getRequires();
+    requires.add(require);
+  }
 
   /**
    * Regenerates the provides/requires if we need to do so.
@@ -308,8 +318,8 @@ public class CompilerInput
   /** Sets the module to which the input belongs. */
   public void setModule(JSModule module) {
     // An input may only belong to one module.
-    Preconditions.checkArgument(
-        module == null || this.module == null || this.module == module);
+    //Preconditions.checkArgument(
+    //    module == null || this.module == null || this.module == module);
     this.module = module;
   }
 
