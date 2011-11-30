@@ -28,7 +28,10 @@ import com.google.javascript.rhino.Node;
 class TransformAMDToCJSModule implements CompilerPass {
 
   private final AbstractCompiler compiler;
-  
+
+  private final DiagnosticType UNSUPPORTED_DEFINE_SIGNATURE = DiagnosticType.error("UNSUPPORTED_DEFINE_SIGNATURE",
+      "Only define(function() ...) and define(['dep', 'dep1'], function(d0, d2, [exports, module]) ...) forms are currently supported.");
+
   TransformAMDToCJSModule(AbstractCompiler compiler) {
     this.compiler = compiler;
   }
@@ -38,49 +41,79 @@ class TransformAMDToCJSModule implements CompilerPass {
     NodeTraversal.traverse(compiler, root, new TransformAMDModulesCallback());
   }
 
+  private void unsupportedDefineError(String sourceName, Node n) {
+    compiler.report(JSError.make(sourceName, n, UNSUPPORTED_DEFINE_SIGNATURE));
+  }
+
   /**
    */
   private class TransformAMDModulesCallback
       extends AbstractPostOrderCallback {
-    
+
     @Override
     public void visit(NodeTraversal t, Node n, Node parent) {
-      if (n.isCall() && n.getFirstChild() != null && 
+      if (n.isCall() && n.getFirstChild() != null &&
           n.getFirstChild().isName() && "define".equals(n.getFirstChild().getString())) {
         Node requiresNode = null;
         Node callback = null;
-        if (n.getChildCount() == 2) {
+        int defineArity = n.getChildCount() - 1;
+        if (defineArity == 0) {
+          unsupportedDefineError(t.getSourceName(), n);
+          return; // Can't handle this.
+        }
+        else if (defineArity == 1) {
           callback = n.getChildAtIndex(1);
         }
-        if (n.getChildCount() == 3) {
+        else if (defineArity == 2) {
           requiresNode = n.getChildAtIndex(1);
           callback = n.getChildAtIndex(2);
         }
+        else if(defineArity >= 3) {
+          unsupportedDefineError(t.getSourceName(), n);
+          return; // Can't handle this.
+        }
+        if (!callback.isFunction()) {
+          unsupportedDefineError(t.getSourceName(), n);
+          return; // Can't handle this.
+        }
+        if (requiresNode != null && !requiresNode.isArrayLit()) {
+          unsupportedDefineError(t.getSourceName(), n);
+          return; // Can't handle this.
+        }
+
         int i = 0;
         Node paramList = callback.getChildAtIndex(1);
         Node context = parent.getParent(); // Removes EXPR_RESULT around define call;
         for (Node aliasNode : paramList.children()) {
-          
           String moduleName = null;
-          Node modNode = requiresNode.getChildAtIndex(i++);
+          Node modNode = requiresNode != null && requiresNode.getChildCount() > i ?
+              requiresNode.getChildAtIndex(i) :
+              null;
+
           if (modNode != null) {
             moduleName = modNode.getString();
           }
           if (aliasNode != null) {
             String aliasName = aliasNode.getString();
             if (moduleName != null) {
+              Node call = IR.call(IR.name("require"), IR.string(moduleName));
+              call.putBooleanProp(Node.FREE_CALL, true);
               context.addChildToFront(
-                  IR.var(IR.name(aliasName), 
-                      IR.call(IR.name("require"), IR.string(moduleName))).copyInformationFromForTree(aliasNode));
+                  IR.var(IR.name(aliasName), call).copyInformationFromForTree(aliasNode));
             } else {
+              // ignore exports and module (because they are implicit in CJS) if they do not alias a module.
+              if ("exports".equals(aliasName)  || "module".equals(aliasName)) {
+                continue;
+              }
               context.addChildToFront(
                   IR.var(IR.name(aliasName)).copyInformationFromForTree(aliasNode));
             }
           }
+          i++;
         }
-        
+
         Node callbackBlock = callback.getChildAtIndex(2);
-        
+
         NodeTraversal.traverse(compiler, callbackBlock, new NodeTraversal.AbstractShallowCallback() {
           @Override
           public void visit(NodeTraversal t, Node n, Node parent) {
@@ -94,7 +127,7 @@ class TransformAMDToCJSModule implements CompilerPass {
             }
           }
         });
-        
+
         int curIndex = context.getIndexOfChild(parent);
         context.removeChild(parent);
         Node before = context.getChildAtIndex(curIndex);
