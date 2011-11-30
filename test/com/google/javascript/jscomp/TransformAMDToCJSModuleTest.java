@@ -22,10 +22,6 @@ package com.google.javascript.jscomp;
  */
 public class TransformAMDToCJSModuleTest extends CompilerTestCase {
 
-  public TransformAMDToCJSModuleTest() {
-    super("", false);
-  }
-
   @Override protected CompilerPass getProcessor(Compiler compiler) {
     return new TransformAMDToCJSModule(compiler);
   }
@@ -36,9 +32,22 @@ public class TransformAMDToCJSModuleTest extends CompilerTestCase {
   }
 
   public void testRewrite() {
-    test("define(['foo', 'bar'], function(foo, bar) { foo(bar); bar+1; })", "var bar=require(\"bar\");var foo=require(\"foo\");foo(bar);bar+1");
-    test("define(['foo', 'bar'], function(foo, bar, baz) { foo(bar); bar+1; })", "var baz;var bar=require(\"bar\");var foo=require(\"foo\");foo(bar);bar+1");
-    test("define(['foo', 'bar'], function(foo, bar) { return { test: 1 } })", "var bar=require(\"bar\");var foo=require(\"foo\");module.exports={test:1}");
+    test("define(['foo', 'bar'], function(foo, bar) { foo(bar); bar+1; })",
+        "var bar=require(\"bar\");var foo=require(\"foo\");foo(bar);bar+1");
+    test("define(['foo', 'bar'], function(foo, bar, baz) { foo(bar); bar+1; })",
+        "var baz;var bar=require(\"bar\");var foo=require(\"foo\");foo(bar);bar+1");
+    test("define(['foo', 'bar'], function(foo, bar) { return { test: 1 } })",
+        "var bar=require(\"bar\");var foo=require(\"foo\");module.exports={test:1}");
+    test("define(function() { return { test: 1 } })",
+        "module.exports={test:1}");
+    test("define(function(exports, module) { return { test: 1 } })",
+        "module.exports={test:1}");
+    test("define(['foo', 'bar'], function(foo, bar, exports) { return { test: 1 } })",
+        "var bar=require(\"bar\");var foo=require(\"foo\");module.exports={test:1}");
+    test("define(['foo', 'bar'], function(foo, bar, exports, module) { return { test: 1 } })",
+        "var bar=require(\"bar\");var foo=require(\"foo\");module.exports={test:1}");
+    test("define(['foo', 'bar'], function(foo, bar, exports, module, baz) { return { test: 1 } })",
+        "var baz;var bar=require(\"bar\");var foo=require(\"foo\");module.exports={test:1}");
   }
-  
+
 }
