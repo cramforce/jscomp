@@ -15,8 +15,10 @@
  */
 package com.google.javascript.jscomp;
 
+import java.io.File;
 import java.util.List;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
 import com.google.javascript.rhino.IR;
@@ -30,30 +32,61 @@ class ProcessCommonJSModules implements CompilerPass {
 
   private final AbstractCompiler compiler;
   private final String filenamePrefix;
+  private final boolean reportDependencies;
   private JSModule module;
-  
+
   ProcessCommonJSModules(AbstractCompiler compiler, String filenamePrefix) {
     this.compiler = compiler;
     this.filenamePrefix = filenamePrefix;
+    this.reportDependencies = true;
+  }
+
+  ProcessCommonJSModules(AbstractCompiler compiler, String filenamePrefix, boolean reportDependencies) {
+    this.compiler = compiler;
+    this.filenamePrefix = filenamePrefix;
+    this.reportDependencies = reportDependencies;
   }
 
   @Override
   public void process(Node externs, Node root) {
     NodeTraversal.traverse(compiler, root, new ProcessCommonJsModulesCallback());
   }
-  
+
   private String guessCJSModuleName(String filename) {
     if (filename.indexOf(filenamePrefix) == 0) {
       filename = filename.substring(filenamePrefix.length());
     }
     return toModuleName(filename);
   }
-  
+
   public JSModule getModule() {
     return module;
   }
-  
+
   public static String toModuleName(String filename) {
+    return "module$" + filename.replaceAll("\\/", "\\$").replaceAll("\\.js$", "");
+  }
+
+  public static String toModuleName(String filename, String currentFilename) {
+    filename = filename.replaceAll("\\.js$", "");
+    currentFilename = currentFilename.replaceAll("\\.js$", "");
+    if (filename.startsWith("./")) {
+      filename = currentFilename + "/" +  filename.substring(2);
+    }
+    int dirsBack = 0;
+    while (filename.startsWith("../")) {
+      filename = filename.substring(3);
+      dirsBack++;
+    }
+    List<String> parts = Lists.newArrayList(currentFilename.split("/"));
+    if (dirsBack > 0) {
+      String suffix = "";
+      for (int i = 0; i < dirsBack; i++) {
+        parts.remove(parts.size() - 1);
+      }
+      parts.add(filename);
+      filename = Joiner.on("/").join(parts);
+    }
     return "module$" + filename.replaceAll("\\/", "\\$").replaceAll("\\.js$", "");
   }
 
@@ -61,52 +94,56 @@ class ProcessCommonJSModules implements CompilerPass {
    */
   private class ProcessCommonJsModulesCallback
       extends AbstractPostOrderCallback {
-    
+
     @Override
     public void visit(NodeTraversal t, Node n, Node parent) {
-      if (n.isCall() && n.getFirstChild() != null && 
+      if (n.isCall() && n.getFirstChild() != null &&
           n.getFirstChild().isName() && "require".equals(n.getFirstChild().getString())) {
-        String moduleName = toModuleName(n.getChildAtIndex(1).getString());
+        String moduleName = toModuleName(n.getChildAtIndex(1).getString(), t.getSourceName());
         Node moduleRef = IR.name(moduleName).srcref(n);
         parent.replaceChild(n, moduleRef);
         Node script = getCurrentScriptNode(parent);
         System.out.println("Require " + moduleName);
-        compiler.getInput(script.getInputId()).addRequire(moduleName);
+        if (reportDependencies) {
+          compiler.getInput(script.getInputId()).addRequire(moduleName);
+        }
         script.addChildToFront(IR.exprResult(
             IR.call(IR.getprop(IR.name("goog"), IR.string("require")), IR.string(moduleName))
         ).copyInformationFromForTree(n));
         compiler.reportCodeChange();
       }
-      
+
       if (n.isScript()) {
         String moduleName = guessCJSModuleName(n.getSourceFileName());
         n.addChildToFront(IR.var(IR.name(moduleName), IR.objectlit()).copyInformationFromForTree(n));
         System.out.println("Provide " + moduleName);
-        CompilerInput ci = compiler.getInput(n.getInputId());
-        ci.addProvide(moduleName);
-        JSModule m = new JSModule(moduleName);
-        m.add(ci);
-        module = m;
+        if (reportDependencies) {
+          CompilerInput ci = compiler.getInput(n.getInputId());
+          ci.addProvide(moduleName);
+          JSModule m = new JSModule(moduleName);
+          m.add(ci);
+          module = m;
+        }
         n.addChildToFront(IR.exprResult(
             IR.call(IR.getprop(IR.name("goog"), IR.string("provide")), IR.string(moduleName))
         ).copyInformationFromForTree(n));
-        
+
         Node moduleExportsProp = IR.getprop(IR.name(moduleName), IR.string("module$exports"));
         n.addChildToBack(
-            IR.ifNode(moduleExportsProp, 
+            IR.ifNode(moduleExportsProp,
                 IR.block(
                     IR.exprResult(
                         IR.assign(IR.name(moduleName), moduleExportsProp.cloneTree())))).
             copyInformationFromForTree(n)
         );
-        
+
         // Rename vars to not conflict in global scope.
         NodeTraversal.traverse(compiler, n, new SuffixVarsCallback(moduleName));
-        
+
         compiler.reportCodeChange();
       }
-      
-      if (n.isGetProp() && 
+
+      if (n.isGetProp() &&
           "module".equals( n.getChildAtIndex(0).getString()) &&
           "exports".equals(n.getChildAtIndex(1).getString())) {
         String moduleName = guessCJSModuleName(n.getSourceFileName());
@@ -114,7 +151,7 @@ class ProcessCommonJSModules implements CompilerPass {
         n.getChildAtIndex(1).setString("module$exports");
       }
     }
-    
+
     Node getCurrentScriptNode(Node n) {
       while (true) {
         if (n.isScript()) {
@@ -124,12 +161,12 @@ class ProcessCommonJSModules implements CompilerPass {
       }
     }
   }
-  
+
   private class SuffixVarsCallback
       extends AbstractPostOrderCallback {
-    
+
     private final String suffix;
-    
+
     public SuffixVarsCallback(String suffix) {
       this.suffix = suffix;
     }
