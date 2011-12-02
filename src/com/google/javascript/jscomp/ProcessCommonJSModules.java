@@ -21,6 +21,8 @@ import java.util.List;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
+import com.google.javascript.jscomp.deps.SortedDependencies;
+import com.google.javascript.jscomp.deps.SortedDependencies.CircularDependencyException;
 import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.InputId;
 import com.google.javascript.rhino.Node;
@@ -33,12 +35,14 @@ class ProcessCommonJSModules implements CompilerPass {
   private final AbstractCompiler compiler;
   private final String filenamePrefix;
   private final boolean reportDependencies;
+  private List<CompilerInput> inputs;
   private JSModule module;
 
-  ProcessCommonJSModules(AbstractCompiler compiler, String filenamePrefix) {
+  ProcessCommonJSModules(AbstractCompiler compiler, String filenamePrefix, List<CompilerInput> inputs) {
     this.compiler = compiler;
     this.filenamePrefix = filenamePrefix;
     this.reportDependencies = true;
+    this.inputs = inputs;
   }
 
   ProcessCommonJSModules(AbstractCompiler compiler, String filenamePrefix, boolean reportDependencies) {
@@ -53,10 +57,16 @@ class ProcessCommonJSModules implements CompilerPass {
   }
 
   private String guessCJSModuleName(String filename) {
-    if (filename.indexOf(filenamePrefix) == 0) {
-      filename = filename.substring(filenamePrefix.length());
+    return toModuleName(normalizeSourceName(filename));
+  }
+
+  public boolean hasCyclicDependency() {
+    try {
+      new SortedDependencies(inputs);
+    } catch (CircularDependencyException e) {
+      return true;
     }
-    return toModuleName(filename);
+    return false;
   }
 
   public JSModule getModule() {
@@ -64,30 +74,45 @@ class ProcessCommonJSModules implements CompilerPass {
   }
 
   public static String toModuleName(String filename) {
-    return "module$" + filename.replaceAll("\\/", "\\$").replaceAll("\\.js$", "");
+    return "module$" + filename.
+        replaceAll("^\\.\\/", "").
+        replaceAll("\\/", "\\$").
+        replaceAll("\\.js$", "").
+        replaceAll("-", "_");
   }
 
   public static String toModuleName(String filename, String currentFilename) {
     filename = filename.replaceAll("\\.js$", "");
     currentFilename = currentFilename.replaceAll("\\.js$", "");
-    if (filename.startsWith("./")) {
-      filename = currentFilename + "/" +  filename.substring(2);
-    }
+
     int dirsBack = 0;
+    while (filename.startsWith("./")) {
+      filename = filename.substring(2);
+      dirsBack++;
+    }
+    if (filename.startsWith("../")) {
+      dirsBack++;
+    }
     while (filename.startsWith("../")) {
       filename = filename.substring(3);
       dirsBack++;
     }
     List<String> parts = Lists.newArrayList(currentFilename.split("/"));
     if (dirsBack > 0) {
-      String suffix = "";
       for (int i = 0; i < dirsBack; i++) {
         parts.remove(parts.size() - 1);
       }
       parts.add(filename);
       filename = Joiner.on("/").join(parts);
     }
-    return "module$" + filename.replaceAll("\\/", "\\$").replaceAll("\\.js$", "");
+    return toModuleName(filename);
+  }
+
+  private String normalizeSourceName(String filename) {
+    if (filename.indexOf(filenamePrefix) == 0) {
+      filename = filename.substring(filenamePrefix.length());
+    }
+    return filename;
   }
 
   /**
@@ -98,14 +123,19 @@ class ProcessCommonJSModules implements CompilerPass {
     @Override
     public void visit(NodeTraversal t, Node n, Node parent) {
       if (n.isCall() && n.getFirstChild() != null &&
-          n.getFirstChild().isName() && "require".equals(n.getFirstChild().getString())) {
-        String moduleName = toModuleName(n.getChildAtIndex(1).getString(), t.getSourceName());
+          n.getChildCount() == 2 &&
+          n.getFirstChild().isName() && "require".equals(n.getFirstChild().getString()) &&
+          n.getChildAtIndex(1).isString()) {
+        String moduleName = toModuleName(n.getChildAtIndex(1).getString(), normalizeSourceName(t.getSourceName()));
         Node moduleRef = IR.name(moduleName).srcref(n);
         parent.replaceChild(n, moduleRef);
         Node script = getCurrentScriptNode(parent);
-        System.out.println("Require " + moduleName);
+        //System.out.println("Require " + moduleName + " in " + guessCJSModuleName(t.getSourceName()));
         if (reportDependencies) {
           compiler.getInput(script.getInputId()).addRequire(moduleName);
+          /*if (hasCyclicDependency()) {
+            compiler.getInput(script.getInputId()).removeRequire(moduleName);
+          }*/
         }
         script.addChildToFront(IR.exprResult(
             IR.call(IR.getprop(IR.name("goog"), IR.string("require")), IR.string(moduleName))
@@ -114,9 +144,9 @@ class ProcessCommonJSModules implements CompilerPass {
       }
 
       if (n.isScript()) {
-        String moduleName = guessCJSModuleName(n.getSourceFileName());
+        String moduleName = guessCJSModuleName(normalizeSourceName(n.getSourceFileName()));
         n.addChildToFront(IR.var(IR.name(moduleName), IR.objectlit()).copyInformationFromForTree(n));
-        System.out.println("Provide " + moduleName);
+        // System.out.println("Provide " + moduleName);
         if (reportDependencies) {
           CompilerInput ci = compiler.getInput(n.getInputId());
           ci.addProvide(moduleName);
@@ -144,7 +174,9 @@ class ProcessCommonJSModules implements CompilerPass {
       }
 
       if (n.isGetProp() &&
+          n.getChildAtIndex(0).isName() &&
           "module".equals( n.getChildAtIndex(0).getString()) &&
+          n.getChildAtIndex(1).isString() &&
           "exports".equals(n.getChildAtIndex(1).getString())) {
         String moduleName = guessCJSModuleName(n.getSourceFileName());
         n.getChildAtIndex(0).setString(moduleName);

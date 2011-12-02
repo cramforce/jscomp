@@ -304,8 +304,8 @@ public class CommandLineRunner extends
 
     @Option(name = "--process_amd_and_cjs_modules",
         usage = "Processes AMD and CJS modules.")
-    private String process_amd_and_cjs_modules = null;
-    
+    private List<String> process_amd_and_cjs_modules = null;
+
     @Option(name = "--process_closure_primitives",
         handler = BooleanOptionHandler.class,
         usage = "Processes built-ins from the Closure library, such as "
@@ -624,12 +624,15 @@ public class CommandLineRunner extends
           "Built on: " + config.getString("compiler.date"));
       err.flush();
     }
-    
+
     if (flags.process_amd_and_cjs_modules != null) {
-      String moduleName = ProcessCommonJSModules.toModuleName(flags.process_amd_and_cjs_modules);
       flags.process_closure_primitives = true;
       flags.manage_closure_dependencies = true;
-      flags.closure_entry_point = Lists.newArrayList(moduleName);
+      List<String> modules = Lists.newArrayList();
+      for (String filename : flags.process_amd_and_cjs_modules) {
+        modules.add(ProcessCommonJSModules.toModuleName(filename));
+      }
+      flags.closure_entry_point = Lists.newArrayList(modules);
     }
 
     if (!isConfigValid || flags.display_help) {
