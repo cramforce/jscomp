@@ -50,4 +50,8 @@ public class TransformAMDToCJSModuleTest extends CompilerTestCase {
         "var baz;var bar=require(\"bar\");var foo=require(\"foo\");module.exports={test:1}");
   }
 
+  public void testObjectLit() {
+    test("define({foo: 'bar'})", "exports={foo: 'bar'}");
+  }
+
 }

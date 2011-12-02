@@ -45,6 +45,12 @@ class TransformAMDToCJSModule implements CompilerPass {
     compiler.report(JSError.make(sourceName, n, UNSUPPORTED_DEFINE_SIGNATURE));
   }
 
+  private boolean isSpecialModuleName(String moduleName) {
+    return "exports".equals(moduleName) ||
+        "require".equals(moduleName)  ||
+        "module".equals(moduleName);
+  }
+
   /**
    */
   private class TransformAMDModulesCallback
@@ -56,6 +62,7 @@ class TransformAMDToCJSModule implements CompilerPass {
           n.getFirstChild().isName() && "define".equals(n.getFirstChild().getString())) {
         Node requiresNode = null;
         Node callback = null;
+        Node onlyExport = null;
         int defineArity = n.getChildCount() - 1;
         if (defineArity == 0) {
           unsupportedDefineError(t.getSourceName(), n);
@@ -63,6 +70,10 @@ class TransformAMDToCJSModule implements CompilerPass {
         }
         else if (defineArity == 1) {
           callback = n.getChildAtIndex(1);
+          if (callback.isObjectLit()) {
+            onlyExport = callback;
+            callback = null;
+          }
         }
         else if (defineArity == 2) {
           requiresNode = n.getChildAtIndex(1);
@@ -72,6 +83,17 @@ class TransformAMDToCJSModule implements CompilerPass {
           unsupportedDefineError(t.getSourceName(), n);
           return; // Can't handle this.
         }
+
+        Node context = parent.getParent(); // Removes EXPR_RESULT around define call;
+
+        if (onlyExport != null) {
+          onlyExport.getParent().removeChild(onlyExport);
+          context.replaceChild(parent, IR.exprResult(
+              IR.assign(IR.name("exports"), onlyExport)).copyInformationFromForTree(onlyExport));
+          compiler.reportCodeChange();
+          return;
+        }
+
         if (!callback.isFunction()) {
           unsupportedDefineError(t.getSourceName(), n);
           return; // Can't handle this.
@@ -83,7 +105,6 @@ class TransformAMDToCJSModule implements CompilerPass {
 
         int i = 0;
         Node paramList = callback.getChildAtIndex(1);
-        Node context = parent.getParent(); // Removes EXPR_RESULT around define call;
         for (Node aliasNode : paramList.children()) {
           String moduleName = null;
           Node modNode = requiresNode != null && requiresNode.getChildCount() > i ?
@@ -95,14 +116,19 @@ class TransformAMDToCJSModule implements CompilerPass {
           }
           if (aliasNode != null) {
             String aliasName = aliasNode.getString();
-            if (moduleName != null) {
+
+            if (isSpecialModuleName(moduleName)) {
+              continue;
+            }
+
+            if (moduleName != null && moduleName.indexOf('!') == -1) { // TODO(malteubl) Handle ?,! in define better.
               Node call = IR.call(IR.name("require"), IR.string(moduleName));
               call.putBooleanProp(Node.FREE_CALL, true);
               context.addChildToFront(
                   IR.var(IR.name(aliasName), call).copyInformationFromForTree(aliasNode));
             } else {
-              // ignore exports and module (because they are implicit in CJS) if they do not alias a module.
-              if ("exports".equals(aliasName)  || "module".equals(aliasName)) {
+              // ignore exports, require and module (because they are implicit in CJS);
+              if (isSpecialModuleName(aliasName)) {
                 continue;
               }
               context.addChildToFront(
@@ -117,7 +143,7 @@ class TransformAMDToCJSModule implements CompilerPass {
         NodeTraversal.traverse(compiler, callbackBlock, new NodeTraversal.AbstractShallowCallback() {
           @Override
           public void visit(NodeTraversal t, Node n, Node parent) {
-            if (n.isReturn()) {
+            if (n.isReturn() && n.hasChildren()) {
               Node retVal = n.getFirstChild();
               n.removeChild(retVal);
               parent.replaceChild(n, IR.exprResult(

@@ -52,16 +52,22 @@ public class ProcessCommonJSModulesTest extends CompilerTestCase {
     test("var a = 1, b = 2; (function() { var a; b = 4})()", "goog.provide('module$test'); var module$test = {}; var a$$module$test = 1, b$$module$test = 2; (function() { var a; b$$module$test = 4})(); if(module$test.module$exports)module$test=module$test.module$exports");
   }
 
+  public void testDash() {
+    setFilename("test-test");
+    test("var name = require('name'); exports.foo = 1;", "goog.provide('module$test_test'); var module$test_test = {}; goog.require('module$name'); var name$$module$test_test = module$name; module$test_test.foo = 1;if(module$test_test.module$exports)module$test_test=module$test_test.module$exports");
+  }
+
   public void testModuleName() {
     setFilename("foo/bar");
     test("var name = require('name');",
         "goog.provide('module$foo$bar'); var module$foo$bar = {}; goog.require('module$name'); var name$$module$foo$bar = module$name; if(module$foo$bar.module$exports)module$foo$bar=module$foo$bar.module$exports");
-    assertEquals("module$foo$bar$baz", ProcessCommonJSModules.toModuleName("./baz.js", "foo/bar.js"));
-    assertEquals("module$foo$baz", ProcessCommonJSModules.toModuleName("../baz.js", "foo/bar.js"));
-    assertEquals("module$baz", ProcessCommonJSModules.toModuleName("../../baz.js", "foo/bar.js"));
-    assertEquals("module$baz", ProcessCommonJSModules.toModuleName("../../../baz.js", "foo/bar/baz.js"));
+    assertEquals("module$foo$baz", ProcessCommonJSModules.toModuleName("./baz.js", "foo/bar.js"));
+    assertEquals("module$foo$baz_bar", ProcessCommonJSModules.toModuleName("./baz-bar.js", "foo/bar.js"));
+    assertEquals("module$baz", ProcessCommonJSModules.toModuleName("../baz.js", "foo/bar.js"));
+    assertEquals("module$baz", ProcessCommonJSModules.toModuleName("../../baz.js", "foo/bar/abc.js"));
+    assertEquals("module$baz", ProcessCommonJSModules.toModuleName("../../../baz.js", "foo/bar/abc/xyz.js"));
     test("var name = require('./name');",
-        "goog.provide('module$foo$bar'); var module$foo$bar = {}; goog.require('module$foo$bar$name'); var name$$module$foo$bar = module$foo$bar$name; if(module$foo$bar.module$exports)module$foo$bar=module$foo$bar.module$exports");
+        "goog.provide('module$foo$bar'); var module$foo$bar = {}; goog.require('module$foo$name'); var name$$module$foo$bar = module$foo$name; if(module$foo$bar.module$exports)module$foo$bar=module$foo$bar.module$exports");
 
   }
 }

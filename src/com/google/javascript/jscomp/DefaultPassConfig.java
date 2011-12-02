@@ -233,7 +233,7 @@ public class DefaultPassConfig extends PassConfig {
     if (options.exportTestFunctions) {
       checks.add(exportTestFunctions);
     }
-    
+
     if (options.closurePass) {
       checks.add(closurePrimitives.makeOneTimePass());
     }
@@ -892,28 +892,6 @@ public class DefaultPassConfig extends PassConfig {
     }
   };
 
-  /**
-   * Transforms AMD style modules to CJS modules.
-   */
-  public static final PassFactory transformAMDModules =
-      new PassFactory("transformAMDModules", true) {
-    @Override
-    protected CompilerPass createInternal(final AbstractCompiler compiler) {
-      return new TransformAMDToCJSModule(compiler);
-    }
-  };
-  
-  /**
-   * Processes CJS modules to be consumable by our closure pass.
-   */
-  public static final PassFactory processCJSModules =
-      new PassFactory("processCJSModules", true) {
-    @Override
-    protected CompilerPass createInternal(final AbstractCompiler compiler) {
-      return new ProcessCommonJSModules(compiler, "");
-    }
-  };
-  
   /**
    * The default i18n pass.
    * A lot of the options are not configurable, because ReplaceMessages

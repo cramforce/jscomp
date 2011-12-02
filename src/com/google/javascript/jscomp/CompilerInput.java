@@ -185,15 +185,20 @@ public class CompilerInput
       return ImmutableList.<String>of();
     }
   }
-  
+
   public void addProvide(String provide) {
     getProvides();
     provides.add(provide);
   }
-  
+
   public void addRequire(String require) {
     getRequires();
     requires.add(require);
+  }
+
+  public void removeRequire(String require) {
+    getRequires();
+    requires.remove(require);
   }
 
   /**

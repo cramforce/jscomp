@@ -1192,25 +1192,26 @@ public class Compiler extends AbstractCompiler {
 
       // Check if the sources need to be re-ordered.
       if (options.manageClosureDependencies) {
-        
+
         List<JSModule> cjsModules = Lists.newArrayList();
         for (CompilerInput input : inputs) {
           input.setCompiler(this);
           new TransformAMDToCJSModule(this).process(externsRoot, input.getAstRoot(this));
-          ProcessCommonJSModules cjs = new ProcessCommonJSModules(this, "");
+          ProcessCommonJSModules cjs = new ProcessCommonJSModules(this, "./", inputs);
           cjs.process(externsRoot, input.getAstRoot(this));
           JSModule m = cjs.getModule();
           if (m != null) {
             cjsModules.add(m);
           }
-          
+
           // Forward-declare all the provided types, so that they
           // are not flagged even if they are dropped from the process.
           for (String provide : input.getProvides()) {
+            System.out.println("Provide " + provide + " -> " + m);
             getTypeRegistry().forwardDeclareType(provide);
           }
         }
-        
+
         if (cjsModules.size() > 0) {
           this.modules = cjsModules;
           this.moduleGraph = null;
