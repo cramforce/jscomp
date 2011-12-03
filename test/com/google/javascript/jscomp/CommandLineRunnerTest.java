@@ -103,6 +103,7 @@ public class CommandLineRunnerTest extends TestCase {
   public void setUp() throws Exception {
     super.setUp();
     externs = DEFAULT_EXTERNS;
+    filename = null;
     lastCompiler = null;
     lastArg = null;
     outReader = new ByteArrayOutputStream();
@@ -895,6 +896,28 @@ public class CommandLineRunnerTest extends TestCase {
       "Manifest files cannot be generated when the input is from stdin.");
   }
 
+  public void testTransformAMD() {
+    args.add("--transform_amd_modules");
+    test("define({})", "exports = {}");
+  }
+
+  public void testProcessCJS() {
+    args.add("--process_cjs_modules");
+    args.add("--common_js_entry_module=foo/bar");
+    setFilename("foo/bar.js");
+    test("exports.test = 1",
+        "var module$foo$bar={test:1}; module$foo$bar.module$exports && (module$foo$bar=module$foo$bar.module$exports)");
+  }
+
+  public void testTransformAMDAndProcessCJS() {
+    args.add("--transform_amd_modules");
+    args.add("--process_cjs_modules");
+    args.add("--common_js_entry_module=foo/bar");
+    setFilename("foo/bar.js");
+    test("define({foo: 1})",
+        "var module$foo$bar={}, module$foo$bar={foo:1}; module$foo$bar.module$exports && (module$foo$bar=module$foo$bar.module$exports)");
+  }
+
   /* Helper functions */
 
   private void testSame(String original) {
@@ -1008,6 +1031,19 @@ public class CommandLineRunnerTest extends TestCase {
         new PrintStream(errReader));
   }
 
+  private String filename = null;
+
+  private void setFilename(String filename) {
+    this.filename = filename;
+  }
+
+  private String getFilename(int i) {
+    if (filename == null) {
+      return "input" + i;
+    }
+    return filename;
+  }
+
   private Compiler compile(String[] original) {
     CommandLineRunner runner = createCommandLineRunner(original);
     assertTrue(runner.shouldRunCompiler());
@@ -1017,7 +1053,7 @@ public class CommandLineRunnerTest extends TestCase {
     if (useModules == ModulePattern.NONE) {
       List<JSSourceFile> inputs = Lists.newArrayList();
       for (int i = 0; i < original.length; i++) {
-        inputs.add(JSSourceFile.fromCode("input" + i, original[i]));
+        inputs.add(JSSourceFile.fromCode(getFilename(i), original[i]));
       }
       inputsSupplier = Suppliers.ofInstance(inputs);
     } else if (useModules == ModulePattern.STAR) {
@@ -1054,7 +1090,7 @@ public class CommandLineRunnerTest extends TestCase {
     Compiler compiler = runner.createCompiler();
     List<JSSourceFile> inputs = Lists.newArrayList();
     for (int i = 0; i < original.length; i++) {
-      inputs.add(JSSourceFile.fromCode("input" + i, original[i]));
+      inputs.add(JSSourceFile.fromCode(getFilename(i), original[i]));
     }
     CompilerOptions options = new CompilerOptions();
     // ECMASCRIPT5 is the most forgiving.

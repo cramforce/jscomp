@@ -1190,13 +1190,13 @@ public class Compiler extends AbstractCompiler {
         externsRoot.addChildToBack(n);
       }
 
+   // Modules inferred in ProcessCommonJS pass.
+      if (options.transformAMDToCJSModules || options.processCommonJSModules) {
+        processAMDAndCommonJSModules();
+      }
+
       // Check if the sources need to be re-ordered.
       if (options.manageClosureDependencies) {
-
-        // Modules inferred in ProcessCommonJS pass.
-        if (options.transformAMDToCJSModules || options.processCommonJSModules) {
-          processAMDAndCommonJSModules();
-        }
 
         for (CompilerInput input : inputs) {
           input.setCompiler(this);
@@ -1320,7 +1320,7 @@ public class Compiler extends AbstractCompiler {
     // Common JS modules override standard initialization.
     if (cjsModules.size() > 0) {
       this.modules = cjsModules;
-      this.moduleGraph = null;
+      this.moduleGraph = new JSModuleGraph(this.modules);
     }
   }
 

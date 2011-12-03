@@ -317,7 +317,7 @@ public class CommandLineRunner extends
 
     @Option(name = "--transform_amd_modules",
         usage = "Transform AMD to Common JS modules.")
-    private boolean transform_amd_modules;
+    private boolean transform_amd_modules = false;
 
     @Option(name = "--process_closure_primitives",
         handler = BooleanOptionHandler.class,
