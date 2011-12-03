@@ -231,10 +231,10 @@ class IRFactory {
     String value = comment.getValue();
     if (value.indexOf("/* @") != -1 ||
         value.indexOf("\n * @") != -1) {
-      errorReporter.warning(
+      /*errorReporter.warning(
           SUSPICIOUS_COMMENT_WARNING,
           sourceName,
-          comment.getLineno(), "", 0);
+          comment.getLineno(), "", 0);*/
     }
   }
 
