@@ -653,6 +653,15 @@ public class CompilerOptions implements Serializable, Cloneable {
   /** List of properties that we report invalidation errors for. */
   Map<String, CheckLevel> propertyInvalidationErrors;
 
+  /** Transform AMD to Common JS modules. */
+  public boolean transformAMDToCJSModules = false;
+
+  /** Transform AMD to Common JS modules. */
+  public boolean processCommonJSModules = false;
+
+  /** Common JS module prefix. */
+  public String commonJSModulePathPrefix = "./";
+
 
   //--------------------------------
   // Output options
