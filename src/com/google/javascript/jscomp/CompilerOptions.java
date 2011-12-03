@@ -55,12 +55,13 @@ public class CompilerOptions implements Serializable, Cloneable {
   private LanguageMode languageIn;
 
   /**
-   * The JavaScript language version accepted.
+   * The JavaScript language version that should be produced.
+   * Currently, this is always the same as {@link #languageIn}.
    */
   private LanguageMode languageOut;
 
   /**
-   * Whether the compiler handles `const' keyword or not.
+   * Whether the compiler accepts the `const' keyword.
    */
   boolean acceptConstKeyword;
 
@@ -70,8 +71,6 @@ public class CompilerOptions implements Serializable, Cloneable {
    * be coerced to the global "this" and primitives to objects).
    */
   private boolean assumeStrictThis;
-
-  // TODO(johnlenz): Add an language output mode.
 
   /**
    * Configures the compiler for use as an IDE backend.  In this mode:
@@ -144,20 +143,6 @@ public class CompilerOptions implements Serializable, Cloneable {
     this.aggressiveVarCheck = level;
   }
 
-  public CheckLevel checkFunctions;
-
-  /** Checks function arity */
-  public void setCheckFunctions(CheckLevel level) {
-    this.checkFunctions = level;
-  }
-
-  public CheckLevel checkMethods;
-
-  /** Checks method arity */
-  public void setCheckMethods(CheckLevel level) {
-    this.checkMethods = level;
-  }
-
   /** Makes sure no duplicate messages */
   public boolean checkDuplicateMessages;
 
@@ -179,11 +164,8 @@ public class CompilerOptions implements Serializable, Cloneable {
   /** Checks types on expressions */
   public boolean checkTypes;
 
-  /** Tightens types based on a global analysis. */
+  /** Tightens types based on a global analysis. Experimental. */
   public boolean tightenTypes;
-
-  /** Checks for inexistant property calls */
-  public boolean checkTypedPropertyCalls;
 
   public CheckLevel reportMissingOverride;
 
@@ -647,9 +629,6 @@ public class CompilerOptions implements Serializable, Cloneable {
   // A list of strings that should not be used as replacements
   Set<String> replaceStringsReservedStrings;
 
-  // Fixes open source issue: 390
-  boolean operaCompoundAssignFix;
-
   /** List of properties that we report invalidation errors for. */
   Map<String, CheckLevel> propertyInvalidationErrors;
 
@@ -761,8 +740,6 @@ public class CompilerOptions implements Serializable, Cloneable {
     checkSymbols = false;
     checkShadowVars = CheckLevel.OFF;
     aggressiveVarCheck = CheckLevel.OFF;
-    checkFunctions = CheckLevel.OFF;
-    checkMethods = CheckLevel.OFF;
     checkDuplicateMessages = false;
     allowLegacyJsMessages = false;
     strictMessageReplacement = false;
@@ -770,7 +747,6 @@ public class CompilerOptions implements Serializable, Cloneable {
     checkControlStructures = false;
     checkTypes = false;
     tightenTypes = false;
-    checkTypedPropertyCalls = false;
     reportMissingOverride = CheckLevel.OFF;
     reportUnknownTypes = CheckLevel.OFF;
     checkRequires = CheckLevel.OFF;
@@ -892,8 +868,6 @@ public class CompilerOptions implements Serializable, Cloneable {
 
     // Debugging
     aliasHandler = NULL_ALIAS_TRANSFORMATION_HANDLER;
-
-    operaCompoundAssignFix = true;
   }
 
   /**
