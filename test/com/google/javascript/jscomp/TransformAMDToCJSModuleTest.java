@@ -31,17 +31,13 @@ public class TransformAMDToCJSModuleTest extends CompilerTestCase {
     return 1;
   }
 
-  public void testRewrite() {
+  public void testDefine() {
     test("define(['foo', 'bar'], function(foo, bar) { foo(bar); bar+1; })",
         "var bar=require(\"bar\");var foo=require(\"foo\");foo(bar);bar+1");
     test("define(['foo', 'bar'], function(foo, bar, baz) { foo(bar); bar+1; })",
         "var baz;var bar=require(\"bar\");var foo=require(\"foo\");foo(bar);bar+1");
     test("define(['foo', 'bar'], function(foo, bar) { return { test: 1 } })",
         "var bar=require(\"bar\");var foo=require(\"foo\");module.exports={test:1}");
-    test("define(function() { return { test: 1 } })",
-        "module.exports={test:1}");
-    test("define(function(exports, module) { return { test: 1 } })",
-        "module.exports={test:1}");
     test("define(['foo', 'bar'], function(foo, bar, exports) { return { test: 1 } })",
         "var bar=require(\"bar\");var foo=require(\"foo\");module.exports={test:1}");
     test("define(['foo', 'bar'], function(foo, bar, exports, module) { return { test: 1 } })",
@@ -50,8 +46,19 @@ public class TransformAMDToCJSModuleTest extends CompilerTestCase {
         "var baz;var bar=require(\"bar\");var foo=require(\"foo\");module.exports={test:1}");
   }
 
+  public void testDefineOnlyFunction() {
+    test("define(function() { return { test: 1 } })",
+        "module.exports={test:1}");
+    test("define(function(exports, module) { return { test: 1 } })",
+        "module.exports={test:1}");
+  }
+
   public void testObjectLit() {
     test("define({foo: 'bar'})", "exports={foo: 'bar'}");
+  }
+
+  public void testIgnoredForms() {
+    test("var x = define({foo: 'bar'})", "var x = define({foo: 'bar'})");
   }
 
 }

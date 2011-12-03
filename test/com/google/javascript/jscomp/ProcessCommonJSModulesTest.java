@@ -58,14 +58,14 @@ public class ProcessCommonJSModulesTest extends CompilerTestCase {
   }
 
   public void testModuleName() {
-    setFilename("foo/bar");
-    test("var name = require('name');",
-        "goog.provide('module$foo$bar'); var module$foo$bar = {}; goog.require('module$name'); var name$$module$foo$bar = module$name; if(module$foo$bar.module$exports)module$foo$bar=module$foo$bar.module$exports");
     assertEquals("module$foo$baz", ProcessCommonJSModules.toModuleName("./baz.js", "foo/bar.js"));
     assertEquals("module$foo$baz_bar", ProcessCommonJSModules.toModuleName("./baz-bar.js", "foo/bar.js"));
     assertEquals("module$baz", ProcessCommonJSModules.toModuleName("../baz.js", "foo/bar.js"));
     assertEquals("module$baz", ProcessCommonJSModules.toModuleName("../../baz.js", "foo/bar/abc.js"));
     assertEquals("module$baz", ProcessCommonJSModules.toModuleName("../../../baz.js", "foo/bar/abc/xyz.js"));
+    setFilename("foo/bar");
+    test("var name = require('name');",
+        "goog.provide('module$foo$bar'); var module$foo$bar = {}; goog.require('module$name'); var name$$module$foo$bar = module$name; if(module$foo$bar.module$exports)module$foo$bar=module$foo$bar.module$exports");
     test("var name = require('./name');",
         "goog.provide('module$foo$bar'); var module$foo$bar = {}; goog.require('module$foo$name'); var name$$module$foo$bar = module$foo$name; if(module$foo$bar.module$exports)module$foo$bar=module$foo$bar.module$exports");
 

@@ -1197,7 +1197,7 @@ public class Compiler extends AbstractCompiler {
         for (CompilerInput input : inputs) {
           input.setCompiler(this);
           new TransformAMDToCJSModule(this).process(externsRoot, input.getAstRoot(this));
-          ProcessCommonJSModules cjs = new ProcessCommonJSModules(this, "./", inputs);
+          ProcessCommonJSModules cjs = new ProcessCommonJSModules(this, "./");
           cjs.process(externsRoot, input.getAstRoot(this));
           JSModule m = cjs.getModule();
           if (m != null) {
