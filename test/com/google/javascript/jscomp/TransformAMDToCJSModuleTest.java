@@ -18,7 +18,6 @@ package com.google.javascript.jscomp;
 
 /**
  * Unit tests for {@link TransformAMDToCJSModules}
- *
  */
 public class TransformAMDToCJSModuleTest extends CompilerTestCase {
 
@@ -57,8 +56,28 @@ public class TransformAMDToCJSModuleTest extends CompilerTestCase {
     test("define({foo: 'bar'})", "exports={foo: 'bar'}");
   }
 
-  public void testIgnoredForms() {
-    test("var x = define({foo: 'bar'})", "var x = define({foo: 'bar'})");
+  public void testUnsupportedForms() {
+    testUnsupported("define()");
+    testUnsupported("define([], function() {}, 1)");
+    testUnsupported("define({}, function() {})");
+    testUnsupported("define('test', function() {})");
+    testUnsupported("define([])");
+    testUnsupported("define(true)");
+    testUnsupported("define(1)");
+    testNonTopLevelDefine("var x = define(function() {});");
+    testNonTopLevelDefine("if(define(function() {})) {}");
+  }
+
+  public void testLocalDefine() {
+    testSame("(function() { function define() {}; define({}); })()");
+  }
+
+  private void testUnsupported(String js) {
+    test(js, null, TransformAMDToCJSModule.UNSUPPORTED_DEFINE_SIGNATURE_ERROR);
+  }
+
+  private void testNonTopLevelDefine(String js) {
+    test(js, null, TransformAMDToCJSModule.NON_TOP_LEVEL_STATEMENT_DEFINE_ERROR);
   }
 
 }
