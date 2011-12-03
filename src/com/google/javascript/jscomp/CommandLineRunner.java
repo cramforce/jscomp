@@ -302,9 +302,22 @@ public class CommandLineRunner extends
         + "PRETTY_PRINT, PRINT_INPUT_DELIMITER")
     private List<FormattingOption> formatting = Lists.newArrayList();
 
-    @Option(name = "--process_amd_and_cjs_modules",
-        usage = "Processes AMD and CJS modules.")
-    private List<String> process_amd_and_cjs_modules = null;
+    @Option(name = "--process_cjs_modules",
+        usage = "Process CJS modules to a concatenable form.")
+    private boolean process_cjs_modules = false;
+
+    @Option(name = "--cjs_module_path_prefix",
+        usage = "Path prefix to be removed from Common JS module names.")
+    private String common_js_path_prefix;
+
+    @Option(name = "--common_js_entry_module",
+        usage = "Root of your common JS dependency hierarchy. "+
+            "Your main script.")
+    private String common_js_entry_module;
+
+    @Option(name = "--transform_amd_modules",
+        usage = "Transform AMD to Common JS modules.")
+    private boolean transform_amd_modules;
 
     @Option(name = "--process_closure_primitives",
         handler = BooleanOptionHandler.class,
@@ -625,14 +638,15 @@ public class CommandLineRunner extends
       err.flush();
     }
 
-    if (flags.process_amd_and_cjs_modules != null) {
+    if (flags.process_cjs_modules) {
       flags.process_closure_primitives = true;
       flags.manage_closure_dependencies = true;
-      List<String> modules = Lists.newArrayList();
-      for (String filename : flags.process_amd_and_cjs_modules) {
-        modules.add(ProcessCommonJSModules.toModuleName(filename));
+      if (flags.common_js_entry_module == null) {
+        err.println("Please specify --common_js_entry_module.");
+        err.flush();
+        isConfigValid = false;
       }
-      flags.closure_entry_point = Lists.newArrayList(modules);
+      flags.closure_entry_point = Lists.newArrayList(ProcessCommonJSModules.toModuleName(flags.common_js_entry_module));
     }
 
     if (!isConfigValid || flags.display_help) {
@@ -670,7 +684,10 @@ public class CommandLineRunner extends
           .setClosureEntryPoints(flags.closure_entry_point)
           .setOutputManifest(ImmutableList.of(flags.output_manifest))
           .setAcceptConstKeyword(flags.accept_const_keyword)
-          .setLanguageIn(flags.language_in);
+          .setLanguageIn(flags.language_in)
+          .setProcessCommonJSModules(flags.process_cjs_modules)
+          .setCommonJSModulePathPrefix(flags.common_js_path_prefix)
+          .setTransformAMDToCJSModules(flags.transform_amd_modules);
     }
   }
 

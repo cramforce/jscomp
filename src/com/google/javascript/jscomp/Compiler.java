@@ -1193,28 +1193,19 @@ public class Compiler extends AbstractCompiler {
       // Check if the sources need to be re-ordered.
       if (options.manageClosureDependencies) {
 
-        List<JSModule> cjsModules = Lists.newArrayList();
+        // Modules inferred in ProcessCommonJS pass.
+        if (options.transformAMDToCJSModules || options.processCommonJSModules) {
+          processAMDAndCommonJSModules();
+        }
+
         for (CompilerInput input : inputs) {
           input.setCompiler(this);
-          new TransformAMDToCJSModule(this).process(externsRoot, input.getAstRoot(this));
-          ProcessCommonJSModules cjs = new ProcessCommonJSModules(this, "./");
-          cjs.process(externsRoot, input.getAstRoot(this));
-          JSModule m = cjs.getModule();
-          if (m != null) {
-            cjsModules.add(m);
-          }
 
           // Forward-declare all the provided types, so that they
           // are not flagged even if they are dropped from the process.
           for (String provide : input.getProvides()) {
-            System.out.println("Provide " + provide + " -> " + m);
             getTypeRegistry().forwardDeclareType(provide);
           }
-        }
-
-        if (cjsModules.size() > 0) {
-          this.modules = cjsModules;
-          this.moduleGraph = null;
         }
 
         try {
@@ -1302,6 +1293,34 @@ public class Compiler extends AbstractCompiler {
       return externAndJsRoot;
     } finally {
       stopTracer(tracer, "parseInputs");
+    }
+  }
+
+  /**
+   * Transforms AMD and CJS modules to something closure compiler can
+   * process and creates JSModules and the corresponding dependency tree
+   * on the way.
+   */
+  private void processAMDAndCommonJSModules() {
+    List<JSModule> cjsModules = Lists.newArrayList();
+    for (CompilerInput input : inputs) {
+      input.setCompiler(this);
+      if (options.transformAMDToCJSModules) {
+        new TransformAMDToCJSModule(this).process(externsRoot, input.getAstRoot(this));
+      }
+      if (options.processCommonJSModules) {
+        ProcessCommonJSModules cjs = new ProcessCommonJSModules(this, options.commonJSModulePathPrefix);
+        cjs.process(externsRoot, input.getAstRoot(this));
+        JSModule m = cjs.getModule();
+        if (m != null) {
+          cjsModules.add(m);
+        }
+      }
+    }
+    // Common JS modules override standard initialization.
+    if (cjsModules.size() > 0) {
+      this.modules = cjsModules;
+      this.moduleGraph = null;
     }
   }
 
