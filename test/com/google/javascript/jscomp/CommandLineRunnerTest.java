@@ -928,10 +928,10 @@ public class CommandLineRunnerTest extends TestCase {
     Compiler compiler = compile(original);
 
     if (warning == null) {
-      /*assertEquals("Expected no warnings or errors\n" +
+      assertEquals("Expected no warnings or errors\n" +
           "Errors: \n" + Joiner.on("\n").join(compiler.getErrors()) +
           "Warnings: \n" + Joiner.on("\n").join(compiler.getWarnings()),
-          0, compiler.getErrors().length + compiler.getWarnings().length);*/
+          0, compiler.getErrors().length + compiler.getWarnings().length);
     } else {
       assertEquals(1, compiler.getWarnings().length);
       assertEquals(warning, compiler.getWarnings()[0].getType());
