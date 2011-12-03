@@ -108,7 +108,8 @@ public class CompilerTest extends TestCase {
     compiler.compile(externs, input, options);
   }
 
-  public void testCommonJSProvidesAndRequire() throws CircularDependencyException, MissingProvideException {
+  public void testCommonJSProvidesAndRequire() throws
+      CircularDependencyException, MissingProvideException {
     JSSourceFile[] inputs = {
         JSSourceFile.fromCode("gin.js", "require('tonic')"),
         JSSourceFile.fromCode("tonic.js", ""),
@@ -124,7 +125,8 @@ public class CompilerTest extends TestCase {
     compiler.parseInputs();
     JSModuleGraph graph = compiler.getModuleGraph();
     assertEquals(graph.getModuleCount(), 3);
-    List<CompilerInput> result = graph.manageDependencies(entryPoints, compiler.getInputsForTesting());
+    List<CompilerInput> result = graph.manageDependencies(entryPoints,
+        compiler.getInputsForTesting());
     assertEquals("tonic.js", result.get(0).getName());
     assertEquals("gin.js", result.get(1).getName());
     assertEquals("mix.js", result.get(2).getName());
