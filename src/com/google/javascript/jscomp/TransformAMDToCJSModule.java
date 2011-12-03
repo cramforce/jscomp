@@ -15,22 +15,25 @@
  */
 package com.google.javascript.jscomp;
 
-import java.util.List;
-
-import com.google.common.collect.Lists;
 import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
 import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
 
 /**
- *
+ * Rewrites an AMD module https://github.com/amdjs/amdjs-api/wiki/AMD to a
+ * Common JS module. See ProcessCommonJSModule.java for follow up processing
+ * step.
  */
 class TransformAMDToCJSModule implements CompilerPass {
 
   private final AbstractCompiler compiler;
 
-  private final DiagnosticType UNSUPPORTED_DEFINE_SIGNATURE = DiagnosticType.error("UNSUPPORTED_DEFINE_SIGNATURE",
-      "Only define(function() ...) and define(['dep', 'dep1'], function(d0, d2, [exports, module]) ...) forms are currently supported.");
+  private final DiagnosticType UNSUPPORTED_DEFINE_SIGNATURE = DiagnosticType
+      .error(
+          "UNSUPPORTED_DEFINE_SIGNATURE",
+          "Only define(function() ...), define(OBJECT_LITERAL) and define("
+              + "['dep', 'dep1'], function(d0, d2, [exports, module]) ...) forms "
+              + "are currently supported.");
 
   TransformAMDToCJSModule(AbstractCompiler compiler) {
     this.compiler = compiler;
@@ -46,125 +49,152 @@ class TransformAMDToCJSModule implements CompilerPass {
   }
 
   private boolean isSpecialModuleName(String moduleName) {
-    return "exports".equals(moduleName) ||
-        "require".equals(moduleName)  ||
+    return "exports".equals(moduleName) || "require".equals(moduleName) ||
         "module".equals(moduleName);
   }
 
   /**
+   * Rewrites calls to define which has to be in void context just below the
+   * current script node.
    */
-  private class TransformAMDModulesCallback
-      extends AbstractPostOrderCallback {
+  private class TransformAMDModulesCallback extends AbstractPostOrderCallback {
 
     @Override
     public void visit(NodeTraversal t, Node n, Node parent) {
       if (n.isCall() && n.getFirstChild() != null &&
-          n.getFirstChild().isName() && "define".equals(n.getFirstChild().getString())) {
+          n.getFirstChild().isName() &&
+          "define".equals(n.getFirstChild().getString()) &&
+          parent.isExprResult() && parent.getParent().isScript()) {
+        Node script = parent.getParent();
         Node requiresNode = null;
         Node callback = null;
-        Node onlyExport = null;
         int defineArity = n.getChildCount() - 1;
         if (defineArity == 0) {
           unsupportedDefineError(t.getSourceName(), n);
           return; // Can't handle this.
-        }
-        else if (defineArity == 1) {
+        } else if (defineArity == 1) {
           callback = n.getChildAtIndex(1);
           if (callback.isObjectLit()) {
-            onlyExport = callback;
-            callback = null;
+            handleDefineObjectLiteral(parent, callback, script);
+            return;
           }
-        }
-        else if (defineArity == 2) {
+        } else if (defineArity == 2) {
           requiresNode = n.getChildAtIndex(1);
           callback = n.getChildAtIndex(2);
-        }
-        else if(defineArity >= 3) {
+        } else if (defineArity >= 3) {
           unsupportedDefineError(t.getSourceName(), n);
           return; // Can't handle this.
         }
 
-        Node context = parent.getParent(); // Removes EXPR_RESULT around define call;
-
-        if (onlyExport != null) {
-          onlyExport.getParent().removeChild(onlyExport);
-          context.replaceChild(parent, IR.exprResult(
-              IR.assign(IR.name("exports"), onlyExport)).copyInformationFromForTree(onlyExport));
-          compiler.reportCodeChange();
-          return;
-        }
-
-        if (!callback.isFunction()) {
-          unsupportedDefineError(t.getSourceName(), n);
-          return; // Can't handle this.
-        }
-        if (requiresNode != null && !requiresNode.isArrayLit()) {
+        if (!callback.isFunction() ||
+            (requiresNode != null && !requiresNode.isArrayLit())) {
           unsupportedDefineError(t.getSourceName(), n);
           return; // Can't handle this.
         }
 
-        int i = 0;
-        Node paramList = callback.getChildAtIndex(1);
-        for (Node aliasNode : paramList.children()) {
-          String moduleName = null;
-          Node modNode = requiresNode != null && requiresNode.getChildCount() > i ?
-              requiresNode.getChildAtIndex(i) :
-              null;
-
-          if (modNode != null) {
-            moduleName = modNode.getString();
-          }
-          if (aliasNode != null) {
-            String aliasName = aliasNode.getString();
-
-            if (isSpecialModuleName(moduleName)) {
-              continue;
-            }
-
-            if (moduleName != null && moduleName.indexOf('!') == -1) { // TODO(malteubl) Handle ?,! in define better.
-              Node call = IR.call(IR.name("require"), IR.string(moduleName));
-              call.putBooleanProp(Node.FREE_CALL, true);
-              context.addChildToFront(
-                  IR.var(IR.name(aliasName), call).copyInformationFromForTree(aliasNode));
-            } else {
-              // ignore exports, require and module (because they are implicit in CJS);
-              if (isSpecialModuleName(aliasName)) {
-                continue;
-              }
-              context.addChildToFront(
-                  IR.var(IR.name(aliasName)).copyInformationFromForTree(aliasNode));
-            }
-          }
-          i++;
-        }
+        handleRequiresAndParamList(script, requiresNode, callback);
 
         Node callbackBlock = callback.getChildAtIndex(2);
+        NodeTraversal.traverse(compiler, callbackBlock,
+            new DefineCallbackReturnCallback());
 
-        NodeTraversal.traverse(compiler, callbackBlock, new NodeTraversal.AbstractShallowCallback() {
-          @Override
-          public void visit(NodeTraversal t, Node n, Node parent) {
-            if (n.isReturn() && n.hasChildren()) {
-              Node retVal = n.getFirstChild();
-              n.removeChild(retVal);
-              parent.replaceChild(n, IR.exprResult(
-                  IR.assign(
-                      IR.getprop(IR.name("module"), IR.string("exports")).copyInformationFromForTree(n),
-                      retVal).copyInformationFrom(n)).copyInformationFrom(n));
-            }
-          }
-        });
-
-        int curIndex = context.getIndexOfChild(parent);
-        context.removeChild(parent);
-        Node before = context.getChildAtIndex(curIndex);
-        for (Node body : callbackBlock.children()) {
-          body.getParent().removeChild(body);
-          if (before != null) {
-            context.addChildBefore(body, before);
-          }
-          context.addChildToBack(body);
-        }
+        moveCallbackContentToTopLevel(parent, script, callbackBlock);
         compiler.reportCodeChange();
+      }
+    }
+
+    /**
+     * When define is called with an object literal, assign it to exports and
+     * we're done.
+     */
+    private void handleDefineObjectLiteral(Node parent, Node onlyExport,
+        Node script) {
+      onlyExport.getParent().removeChild(onlyExport);
+      script.replaceChild(parent,
+          IR.exprResult(IR.assign(IR.name("exports"), onlyExport))
+              .copyInformationFromForTree(onlyExport));
+      compiler.reportCodeChange();
+    }
+
+    /**
+     * Rewrites the required modules to
+     * <code>var nameInParamList = require("nameFromRequireList");</code>
+     */
+    private void handleRequiresAndParamList(Node script, Node requiresNode,
+        Node callback) {
+      int i = 0;
+      Node paramList = callback.getChildAtIndex(1);
+      for (Node aliasNode : paramList.children()) {
+        String moduleName = null;
+        Node modNode = requiresNode != null &&
+            requiresNode.getChildCount() > i ?
+                requiresNode.getChildAtIndex(i) : null;
+
+        if (modNode != null) {
+          moduleName = modNode.getString();
+        }
+        if (aliasNode != null) {
+          String aliasName = aliasNode.getString();
+
+          if (isSpecialModuleName(moduleName)) {
+            continue;
+          }
+
+          // TODO(malteubl) Handle ?,! in define better.
+          if (moduleName != null && moduleName.indexOf('!') == -1) {
+            Node call = IR.call(IR.name("require"), IR.string(moduleName));
+            call.putBooleanProp(Node.FREE_CALL, true);
+            script.addChildToFront(IR.var(IR.name(aliasName), call)
+                .copyInformationFromForTree(aliasNode));
+          } else {
+            // ignore exports, require and module (because they are implicit
+            // in CJS);
+            if (isSpecialModuleName(aliasName)) {
+              continue;
+            }
+            script.addChildToFront(IR.var(IR.name(aliasName))
+                .copyInformationFromForTree(aliasNode));
+          }
+        }
+        i++;
+      }
+    }
+
+    /**
+     * Moves the statements in the callback to be direct children of the
+     * current script.
+     */
+    private void moveCallbackContentToTopLevel(Node parent, Node script,
+        Node callbackBlock) {
+      int curIndex = script.getIndexOfChild(parent);
+      script.removeChild(parent);
+      Node before = script.getChildAtIndex(curIndex);
+      for (Node body : callbackBlock.children()) {
+        body.getParent().removeChild(body);
+        if (before != null) {
+          script.addChildBefore(body, before);
+        }
+        script.addChildToBack(body);
+      }
+    }
+  }
+
+  /**
+   * Rewrites the return statement of the callback to be an assingment to
+   * module.exports.
+   */
+  private class DefineCallbackReturnCallback extends
+      NodeTraversal.AbstractShallowStatementCallback {
+    @Override
+    public void visit(NodeTraversal t, Node n, Node parent) {
+      if (n.isReturn() && n.hasChildren()) {
+        Node retVal = n.getFirstChild();
+        n.removeChild(retVal);
+        parent.replaceChild(n, IR.exprResult(
+            IR.assign(
+                IR.getprop(IR.name("module"), IR.string("exports"))
+                    .copyInformationFromForTree(n), retVal)
+                    .copyInformationFrom(n)).copyInformationFrom(n));
       }
     }
   }
