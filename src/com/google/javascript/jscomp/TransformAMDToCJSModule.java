@@ -15,25 +15,32 @@
  */
 package com.google.javascript.jscomp;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
 import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
 
 /**
  * Rewrites an AMD module https://github.com/amdjs/amdjs-api/wiki/AMD to a
- * Common JS module. See ProcessCommonJSModule.java for follow up processing
+ * Common JS module. See {@link ProcessCommonJSModule} for follow up processing
  * step.
  */
 class TransformAMDToCJSModule implements CompilerPass {
 
-  private final AbstractCompiler compiler;
-
-  private final DiagnosticType UNSUPPORTED_DEFINE_SIGNATURE = DiagnosticType
-      .error(
+  @VisibleForTesting
+  final static DiagnosticType UNSUPPORTED_DEFINE_SIGNATURE_ERROR =
+      DiagnosticType.error(
           "UNSUPPORTED_DEFINE_SIGNATURE",
           "Only define(function() ...), define(OBJECT_LITERAL) and define("
               + "['dep', 'dep1'], function(d0, d2, [exports, module]) ...) forms "
               + "are currently supported.");
+  final static DiagnosticType NON_TOP_LEVEL_STATEMENT_DEFINE_ERROR =
+      DiagnosticType.error(
+            "NON_TOP_LEVEL_STATEMENT_DEFINE",
+            "The define function must be called as a top level statement.");
+
+
+  private final AbstractCompiler compiler;
 
   TransformAMDToCJSModule(AbstractCompiler compiler) {
     this.compiler = compiler;
@@ -45,10 +52,14 @@ class TransformAMDToCJSModule implements CompilerPass {
   }
 
   private void unsupportedDefineError(String sourceName, Node n) {
-    compiler.report(JSError.make(sourceName, n, UNSUPPORTED_DEFINE_SIGNATURE));
+    compiler.report(JSError.make(sourceName, n, UNSUPPORTED_DEFINE_SIGNATURE_ERROR));
   }
 
-  private boolean isSpecialModuleName(String moduleName) {
+  /**
+   * The modules "exports", "require" and "module" are virtual in terms of
+   * existing implicitly in CJS.
+   */
+  private boolean isVirtualModuleName(String moduleName) {
     return "exports".equals(moduleName) || "require".equals(moduleName) ||
         "module".equals(moduleName);
   }
@@ -63,15 +74,25 @@ class TransformAMDToCJSModule implements CompilerPass {
     public void visit(NodeTraversal t, Node n, Node parent) {
       if (n.isCall() && n.getFirstChild() != null &&
           n.getFirstChild().isName() &&
-          "define".equals(n.getFirstChild().getString()) &&
-          parent.isExprResult() && parent.getParent().isScript()) {
+          "define".equals(n.getFirstChild().getString())) {
+        Scope.Var defineVar = t.getScope().getVar(n.getFirstChild().
+            getString());
+        if (defineVar != null && !defineVar.isGlobal()) {
+          // Ignore non-global define.
+          return;
+        }
+        if (!(parent.isExprResult() && parent.getParent().isScript())) {
+          compiler.report(JSError.make(t.getSourceName(), n,
+              NON_TOP_LEVEL_STATEMENT_DEFINE_ERROR));
+          return;
+        }
         Node script = parent.getParent();
         Node requiresNode = null;
         Node callback = null;
         int defineArity = n.getChildCount() - 1;
         if (defineArity == 0) {
           unsupportedDefineError(t.getSourceName(), n);
-          return; // Can't handle this.
+          return;
         } else if (defineArity == 1) {
           callback = n.getChildAtIndex(1);
           if (callback.isObjectLit()) {
@@ -83,13 +104,13 @@ class TransformAMDToCJSModule implements CompilerPass {
           callback = n.getChildAtIndex(2);
         } else if (defineArity >= 3) {
           unsupportedDefineError(t.getSourceName(), n);
-          return; // Can't handle this.
+          return;
         }
 
         if (!callback.isFunction() ||
             (requiresNode != null && !requiresNode.isArrayLit())) {
           unsupportedDefineError(t.getSourceName(), n);
-          return; // Can't handle this.
+          return;
         }
 
         handleRequiresAndParamList(script, requiresNode, callback);
@@ -136,7 +157,7 @@ class TransformAMDToCJSModule implements CompilerPass {
         if (aliasNode != null) {
           String aliasName = aliasNode.getString();
 
-          if (isSpecialModuleName(moduleName)) {
+          if (isVirtualModuleName(moduleName)) {
             continue;
           }
 
@@ -149,7 +170,7 @@ class TransformAMDToCJSModule implements CompilerPass {
           } else {
             // ignore exports, require and module (because they are implicit
             // in CJS);
-            if (isSpecialModuleName(aliasName)) {
+            if (isVirtualModuleName(aliasName)) {
               continue;
             }
             script.addChildToFront(IR.var(IR.name(aliasName))
