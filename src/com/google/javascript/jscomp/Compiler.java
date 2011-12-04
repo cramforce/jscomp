@@ -1302,7 +1302,9 @@ public class Compiler extends AbstractCompiler {
    * on the way.
    */
   private void processAMDAndCommonJSModules() {
-    List<JSModule> cjsModules = Lists.newArrayList();
+    Map<String, JSModule> modulesByName = Maps.newLinkedHashMap();
+    Map<CompilerInput, JSModule> modulesByInput = Maps.newLinkedHashMap();
+    // Dear Reviewer: I'm obviously doing it wrong. Please help.
     for (CompilerInput input : inputs) {
       input.setCompiler(this);
       if (options.transformAMDToCJSModules) {
@@ -1313,14 +1315,34 @@ public class Compiler extends AbstractCompiler {
         cjs.process(externsRoot, input.getAstRoot(this));
         JSModule m = cjs.getModule();
         if (m != null) {
-          cjsModules.add(m);
+          modulesByName.put(m.getName(), m);
+          modulesByInput.put(input, m);
         }
       }
     }
-    // Common JS modules override standard initialization.
-    if (cjsModules.size() > 0) {
-      this.modules = cjsModules;
+    List<JSModule> modules = Lists.newArrayList(modulesByName.values());
+    if (modules.size() > 0) {
+      this.modules = modules;
       this.moduleGraph = new JSModuleGraph(this.modules);
+    }
+    for (JSModule module : modules) {
+      for (CompilerInput input : module.getInputs()) {
+        for (String require : input.getRequires()) {
+          module.addDependency(modulesByName.get(require));
+        }
+      }
+    }
+    try {
+      // Help, I need a better way to get modules in dependency order :)
+      modules = Lists.newArrayList();
+      for (CompilerInput input : this.moduleGraph.manageDependencies(
+          options.manageClosureDependenciesEntryPoints, inputs)) {
+        modules.add(modulesByInput.get(input));
+      }
+      this.modules = modules;
+      this.moduleGraph = new JSModuleGraph(modules);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
   }
 

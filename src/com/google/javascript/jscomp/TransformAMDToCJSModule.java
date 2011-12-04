@@ -15,6 +15,8 @@
  */
 package com.google.javascript.jscomp;
 
+import java.util.List;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
 import com.google.javascript.rhino.IR;
@@ -38,9 +40,16 @@ class TransformAMDToCJSModule implements CompilerPass {
       DiagnosticType.error(
             "NON_TOP_LEVEL_STATEMENT_DEFINE",
             "The define function must be called as a top level statement.");
+  final static DiagnosticType REQUIREJS_PLUGINS_NOT_SUPPORTED_WARNING =
+    DiagnosticType.warning(
+          "REQUIREJS_PLUGINS_NOT_SUPPORTED",
+          "Plugins in define requirements are not supported: {0}");
+
+  final static String VAR_RENAME_SUFFIX = "__alias";
 
 
   private final AbstractCompiler compiler;
+  private int renameIndex = 0;
 
   TransformAMDToCJSModule(AbstractCompiler compiler) {
     this.compiler = compiler;
@@ -113,7 +122,7 @@ class TransformAMDToCJSModule implements CompilerPass {
           return;
         }
 
-        handleRequiresAndParamList(script, requiresNode, callback);
+        handleRequiresAndParamList(t, n, script, requiresNode, callback);
 
         Node callbackBlock = callback.getChildAtIndex(2);
         NodeTraversal.traverse(compiler, callbackBlock,
@@ -141,44 +150,108 @@ class TransformAMDToCJSModule implements CompilerPass {
      * Rewrites the required modules to
      * <code>var nameInParamList = require("nameFromRequireList");</code>
      */
-    private void handleRequiresAndParamList(Node script, Node requiresNode,
-        Node callback) {
+    private void handleRequiresAndParamList(NodeTraversal t, Node defineNode,
+        Node script, Node requiresNode, Node callback) {
       int i = 0;
       Node paramList = callback.getChildAtIndex(1);
-      for (Node aliasNode : paramList.children()) {
-        String moduleName = null;
-        Node modNode = requiresNode != null &&
-            requiresNode.getChildCount() > i ?
-                requiresNode.getChildAtIndex(i) : null;
+      // Iterate over the longer list.
+      if (requiresNode == null ||
+          paramList.getChildCount() >= requiresNode.getChildCount()) {
+        for (Node aliasNode : paramList.children()) {
+          Node modNode = requiresNode != null &&
+              requiresNode.getChildCount() > i ?
+                  requiresNode.getChildAtIndex(i) : null;
 
-        if (modNode != null) {
-          moduleName = modNode.getString();
+          handleRequire(t, defineNode, script, callback, aliasNode, modNode);
+          i++;
         }
-        if (aliasNode != null) {
-          String aliasName = aliasNode.getString();
-
-          if (isVirtualModuleName(moduleName)) {
-            continue;
-          }
-
-          // TODO(malteubl) Handle ?,! in define better.
-          if (moduleName != null && moduleName.indexOf('!') == -1) {
-            Node call = IR.call(IR.name("require"), IR.string(moduleName));
-            call.putBooleanProp(Node.FREE_CALL, true);
-            script.addChildToFront(IR.var(IR.name(aliasName), call)
-                .copyInformationFromForTree(aliasNode));
-          } else {
-            // ignore exports, require and module (because they are implicit
-            // in CJS);
-            if (isVirtualModuleName(aliasName)) {
-              continue;
-            }
-            script.addChildToFront(IR.var(IR.name(aliasName))
-                .copyInformationFromForTree(aliasNode));
-          }
+      } else {
+        for (Node modNode : requiresNode.children()) {
+          Node aliasNode = paramList.getChildCount() > i ?
+              paramList.getChildAtIndex(i) : null;
+          handleRequire(t, defineNode, script, callback, aliasNode, modNode);
+          i++;
         }
-        i++;
       }
+    }
+
+    /**
+     * Rewrite a single require call.
+     */
+    private void handleRequire(NodeTraversal t, Node defineNode, Node script,
+        Node callback, Node aliasNode, Node modNode) {
+      String moduleName = null;
+      if (modNode != null) {
+        moduleName = modNode.getString();
+      }
+      String aliasName = aliasNode != null ? aliasNode.getString() : null;
+
+      if (isVirtualModuleName(moduleName)) {
+        return;
+      }
+
+      Scope scope = t.getScope().getGlobalScope();
+      while (aliasName != null &&
+          scope.isDeclared(aliasName, true)) {
+        String renamed = aliasName + VAR_RENAME_SUFFIX + renameIndex;
+        if (!scope.isDeclared(renamed, true)) {
+          NodeTraversal.traverse(compiler, callback, new RenameCallback(aliasName,
+              renamed));
+          aliasName = renamed;
+          break;
+        }
+        renameIndex++;
+      }
+
+      moduleName = handlePlugins(script, moduleName, modNode);
+
+      Node requireNode;
+
+      if (moduleName != null) {
+        Node call = IR.call(IR.name("require"), IR.string(moduleName));
+        call.putBooleanProp(Node.FREE_CALL, true);
+        if (aliasName != null) {
+          requireNode = IR.var(IR.name(aliasName), call)
+              .copyInformationFromForTree(aliasNode);
+        } else {
+          requireNode = IR.exprResult(call).
+              copyInformationFromForTree(modNode);
+        }
+      } else {
+        // ignore exports, require and module (because they are implicit
+        // in CJS);
+        if (isVirtualModuleName(aliasName)) {
+          return;
+        }
+        requireNode = IR.var(IR.name(aliasName), IR.nullNode())
+            .copyInformationFromForTree(aliasNode);
+      }
+
+      script.addChildBefore(requireNode,
+          defineNode.getParent());
+    }
+
+    /**
+     * Require.js supports a range of plugins that are hard to support
+     * statically. Generally none are supported right now with the
+     * exception of a simple hack to support condition loading. This
+     * was added to make compilation of Dojo work better but will
+     * probably break, so just don't use them :)
+     */
+    private String handlePlugins(Node script, String moduleName, Node modNode) {
+      if (moduleName != null && moduleName.indexOf('!') != -1) {
+        compiler.report(JSError.make(script.getSourceFileName(), modNode,
+            REQUIREJS_PLUGINS_NOT_SUPPORTED_WARNING, moduleName));
+        int condition = moduleName.indexOf('?');
+        if (condition > 0) {
+          if (moduleName.indexOf(':') != -1) {
+            return null;
+          }
+          return handlePlugins(script, moduleName.substring(condition + 1), modNode);
+        }
+        moduleName = null;
+      }
+      return moduleName;
     }
 
     /**
@@ -216,6 +289,27 @@ class TransformAMDToCJSModule implements CompilerPass {
                 IR.getprop(IR.name("module"), IR.string("exports"))
                     .copyInformationFromForTree(n), retVal)
                     .copyInformationFrom(n)).copyInformationFrom(n));
+      }
+    }
+  }
+
+  /**
+   * Renames names;
+   */
+  private class RenameCallback extends AbstractPostOrderCallback {
+
+    private final String from;
+    private final String to;
+
+    public RenameCallback(String from, String to) {
+      this.from = from;
+      this.to = to;
+    }
+
+    @Override
+    public void visit(NodeTraversal t, Node n, Node parent) {
+      if (n.isName() && from.equals(n.getString())) {
+        n.setString(to);
       }
     }
   }
