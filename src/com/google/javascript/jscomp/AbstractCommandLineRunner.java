@@ -309,9 +309,7 @@ abstract class AbstractCommandLineRunner<A extends Compiler,
     options.acceptConstKeyword = config.acceptConstKeyword;
     options.transformAMDToCJSModules = config.transformAMDToCJSModules;
     options.processCommonJSModules = config.processCommonJSModules;
-    if (config.commonJSModulePathPrefix != null) {
-      options.commonJSModulePathPrefix = config.commonJSModulePathPrefix;
-    }
+    options.commonJSModulePathPrefix = config.commonJSModulePathPrefix;
   }
 
   final protected A getCompiler() {
@@ -1877,7 +1875,8 @@ abstract class AbstractCommandLineRunner<A extends Compiler,
     }
 
 
-    private String commonJSModulePathPrefix = "./";
+    private String commonJSModulePathPrefix =
+        ProcessCommonJSModules.DEFAULT_FILENAME_PREFIX;
 
     /**
      * Sets the Common JS module path prefix.

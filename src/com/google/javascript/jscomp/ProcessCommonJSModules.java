@@ -15,10 +15,8 @@
  */
 package com.google.javascript.jscomp;
 
-import java.util.List;
-
-import com.google.common.base.Joiner;
-import com.google.common.collect.Lists;
+import java.net.URI;
+import java.net.URISyntaxException;
 import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
 import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
@@ -33,6 +31,8 @@ import com.google.javascript.rhino.Node;
  * ordering.
  */
 class ProcessCommonJSModules implements CompilerPass {
+
+  public static final String  DEFAULT_FILENAME_PREFIX = "./";
 
   private static final String MODULE_NAME_PREFIX = "module$";
 
@@ -64,6 +64,10 @@ class ProcessCommonJSModules implements CompilerPass {
     return toModuleName(normalizeSourceName(filename));
   }
 
+  /**
+   * For every file that is being processed this returns the module that
+   * created for it.
+   */
   public JSModule getModule() {
     return module;
   }
@@ -75,7 +79,7 @@ class ProcessCommonJSModules implements CompilerPass {
    */
   public static String toModuleName(String filename) {
     return MODULE_NAME_PREFIX +
-        filename.replaceAll("^\\.\\/", "").replaceAll("\\/", "\\$")
+        filename.replaceAll("^\\./", "").replaceAll("/", "\\$")
             .replaceAll("\\.js$", "").replaceAll("-", "_");
   }
 
@@ -83,31 +87,21 @@ class ProcessCommonJSModules implements CompilerPass {
    * Turn a filename into a moduleName with support for relative addressing
    * with ./ and ../ based on currentFilename;
    */
-  public static String toModuleName(String filename, String currentFilename) {
-    filename = filename.replaceAll("\\.js$", "");
+  public static String toModuleName(String requiredFilename,
+      String currentFilename) {
+    requiredFilename = requiredFilename.replaceAll("\\.js$", "");
     currentFilename = currentFilename.replaceAll("\\.js$", "");
 
-    // More elegant algorithms welcome but it is late.
-    boolean relative = false;
-    List<String> parts = Lists.newArrayList(currentFilename.split("/"));
-    if (filename.startsWith("./")) {
-      filename = filename.substring(2);
-      parts.remove(parts.size() - 1);
-      relative = true;
-    }
-    else if (filename.startsWith("../")) {
-      parts.remove(parts.size() - 1);
-      while (filename.startsWith("../")) {
-        filename = filename.substring(3);
-        parts.remove(parts.size() - 1);
+    if (requiredFilename.startsWith("./") ||
+        requiredFilename.startsWith("../")) {
+      try {
+        requiredFilename = (new URI(currentFilename)).resolve(new URI(requiredFilename))
+            .toString();
+      } catch (URISyntaxException e) {
+        throw new RuntimeException(e);
       }
-      relative = true;
     }
-    if (relative) {
-      parts.add(filename);
-      filename = Joiner.on("/").join(parts);
-    }
-    return toModuleName(filename);
+    return toModuleName(requiredFilename);
   }
 
   private String normalizeSourceName(String filename) {
@@ -125,9 +119,8 @@ class ProcessCommonJSModules implements CompilerPass {
 
     @Override
     public void visit(NodeTraversal t, Node n, Node parent) {
-      if (n.isCall() && n.getFirstChild() != null && n.getChildCount() == 2 &&
-          n.getFirstChild().isName() &&
-          "require".equals(n.getFirstChild().getString()) &&
+      if (n.isCall() && n.getChildCount() == 2 &&
+          "require".equals(n.getFirstChild().getQualifiedName()) &&
           n.getChildAtIndex(1).isString()) {
         visitRequireCall(t, n, parent);
       }
@@ -180,7 +173,7 @@ class ProcessCommonJSModules implements CompilerPass {
         CompilerInput ci = compiler.getInput(script.getInputId());
         ci.addProvide(moduleName);
         JSModule m = new JSModule(moduleName);
-        m.add(ci);
+        m.addAndOverrideModule(ci);
         module = m;
       }
       script.addChildToFront(IR.exprResult(

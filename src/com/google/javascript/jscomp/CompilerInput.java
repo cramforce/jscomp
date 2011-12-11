@@ -323,8 +323,13 @@ public class CompilerInput
   /** Sets the module to which the input belongs. */
   public void setModule(JSModule module) {
     // An input may only belong to one module.
-    //Preconditions.checkArgument(
-    //    module == null || this.module == null || this.module == module);
+    Preconditions.checkArgument(
+        module == null || this.module == null || this.module == module);
+    this.module = module;
+  }
+
+  /** Overrides the module to which the input belongs. */
+  public void overrideModule(JSModule module) {
     this.module = module;
   }
 

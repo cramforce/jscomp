@@ -16,6 +16,7 @@
 
 package com.google.javascript.jscomp;
 
+import com.google.caja.util.Maps;
 import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
@@ -33,6 +34,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Tests for {@link CommandLineRunner}.
@@ -103,7 +105,7 @@ public class CommandLineRunnerTest extends TestCase {
   public void setUp() throws Exception {
     super.setUp();
     externs = DEFAULT_EXTERNS;
-    filename = null;
+    filenames = Maps.newHashMap();
     lastCompiler = null;
     lastArg = null;
     outReader = new ByteArrayOutputStream();
@@ -904,7 +906,7 @@ public class CommandLineRunnerTest extends TestCase {
   public void testProcessCJS() {
     args.add("--process_cjs_modules");
     args.add("--common_js_entry_module=foo/bar");
-    setFilename("foo/bar.js");
+    setFilename(0, "foo/bar.js");
     test("exports.test = 1",
         "var module$foo$bar={test:1}; module$foo$bar.module$exports && (module$foo$bar=module$foo$bar.module$exports)");
   }
@@ -913,7 +915,7 @@ public class CommandLineRunnerTest extends TestCase {
     args.add("--transform_amd_modules");
     args.add("--process_cjs_modules");
     args.add("--common_js_entry_module=foo/bar");
-    setFilename("foo/bar.js");
+    setFilename(0, "foo/bar.js");
     test("define({foo: 1})",
         "var module$foo$bar={}, module$foo$bar={foo:1}; module$foo$bar.module$exports && (module$foo$bar=module$foo$bar.module$exports)");
   }
@@ -1031,17 +1033,17 @@ public class CommandLineRunnerTest extends TestCase {
         new PrintStream(errReader));
   }
 
-  private String filename = null;
+  private Map<Integer,String> filenames;
 
-  private void setFilename(String filename) {
-    this.filename = filename;
+  private void setFilename(int i, String filename) {
+    this.filenames.put(i, filename);
   }
 
   private String getFilename(int i) {
-    if (filename == null) {
+    if (filenames.isEmpty()) {
       return "input" + i;
     }
-    return filename;
+    return filenames.get(i);
   }
 
   private Compiler compile(String[] original) {

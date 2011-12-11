@@ -633,13 +633,14 @@ public class CompilerOptions implements Serializable, Cloneable {
   Map<String, CheckLevel> propertyInvalidationErrors;
 
   /** Transform AMD to Common JS modules. */
-  public boolean transformAMDToCJSModules = false;
+  boolean transformAMDToCJSModules = false;
 
   /** Transform AMD to Common JS modules. */
-  public boolean processCommonJSModules = false;
+  boolean processCommonJSModules = false;
 
   /** Common JS module prefix. */
-  public String commonJSModulePathPrefix = "./";
+  String commonJSModulePathPrefix =
+      ProcessCommonJSModules.DEFAULT_FILENAME_PREFIX;
 
 
   //--------------------------------
@@ -1393,6 +1394,27 @@ public class CompilerOptions implements Serializable, Cloneable {
       Map<String, CheckLevel> propertyInvalidationErrors) {
     this.propertyInvalidationErrors =
         Maps.newHashMap(propertyInvalidationErrors);
+  }
+
+  /**
+   * Activates transformation of AMD to CJS modules.
+   */
+  public void setTransformAMDToCJSModules(boolean transformAMDToCJSModules) {
+    this.transformAMDToCJSModules = transformAMDToCJSModules;
+  }
+
+  /**
+   * Activates Common JS module processing.
+   */
+  public void setProcessCommonJSModules(boolean processCommonJSModules) {
+    this.processCommonJSModules = processCommonJSModules;
+  }
+
+  /**
+   * Sets a path prefix for Common JS modules.
+   */
+  public void setCommonJSModulePathPrefix(String commonJSModulePathPrefix) {
+    this.commonJSModulePathPrefix = commonJSModulePathPrefix;
   }
 
 

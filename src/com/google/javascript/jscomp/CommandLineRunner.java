@@ -308,7 +308,8 @@ public class CommandLineRunner extends
 
     @Option(name = "--cjs_module_path_prefix",
         usage = "Path prefix to be removed from Common JS module names.")
-    private String common_js_path_prefix;
+    private String common_js_path_prefix =
+        ProcessCommonJSModules.DEFAULT_FILENAME_PREFIX;
 
     @Option(name = "--common_js_entry_module",
         usage = "Root of your common JS dependency hierarchy. "+
