@@ -37,36 +37,76 @@ public class ProcessCommonJSModulesTest extends CompilerTestCase {
   public void testWithoutExports() {
     setFilename("test");
     test(
-        "var name = require('name'); name()",
-        "goog.provide('module$test'); var module$test = {}; goog.require('module$name'); var name$$module$test = module$name; name$$module$test();if(module$test.module$exports)module$test=module$test.module$exports");
+        "var name = require('name');" +
+        "name()",
+        "goog.provide('module$test');" +
+        "var module$test = {};" +
+        "goog.require('module$name');" +
+        "var name$$module$test = module$name;" +
+        "name$$module$test();" +
+        "if(module$test.module$exports)" +
+        "module$test=module$test.module$exports");
     setFilename("test/sub");
     test(
-        "var name = require('mod/name'); (function() { name(); })();",
-        "goog.provide('module$test$sub'); var module$test$sub = {}; goog.require('module$mod$name'); var name$$module$test$sub = module$mod$name; (function() { name$$module$test$sub(); })();if(module$test$sub.module$exports)module$test$sub=module$test$sub.module$exports");
+        "var name = require('mod/name');" +
+        "(function() { name(); })();",
+        "goog.provide('module$test$sub');" +
+        "var module$test$sub = {};" +
+        "goog.require('module$mod$name');" +
+        "var name$$module$test$sub = module$mod$name;" +
+        "(function() { name$$module$test$sub(); })();" +
+        "if(module$test$sub.module$exports)" +
+        "module$test$sub=module$test$sub.module$exports");
   }
 
   public void testExports() {
     setFilename("test");
     test(
-        "var name = require('name'); exports.foo = 1;",
-        "goog.provide('module$test'); var module$test = {}; goog.require('module$name'); var name$$module$test = module$name; module$test.foo = 1;if(module$test.module$exports)module$test=module$test.module$exports");
+        "var name = require('name');" +
+        "exports.foo = 1;",
+        "goog.provide('module$test');" +
+        "var module$test = {};" +
+        "goog.require('module$name');" +
+        "var name$$module$test = module$name;" +
+        "module$test.foo = 1;" +
+        "if(module$test.module$exports)" +
+        "module$test=module$test.module$exports");
     test(
-        "var name = require('name'); module.exports = function() {};",
-        "goog.provide('module$test'); var module$test = {}; goog.require('module$name'); var name$$module$test = module$name; module$test.module$exports = function() {};if(module$test.module$exports)module$test=module$test.module$exports");
+        "var name = require('name');" +
+        "module.exports = function() {};",
+        "goog.provide('module$test');" +
+        "var module$test = {};" +
+        "goog.require('module$name');" +
+        "var name$$module$test = module$name;" +
+        "module$test.module$exports = function() {};" +
+        "if(module$test.module$exports)" +
+        "module$test=module$test.module$exports");
   }
 
   public void testVarRenaming() {
     setFilename("test");
     test(
-        "var a = 1, b = 2; (function() { var a; b = 4})()",
-        "goog.provide('module$test'); var module$test = {}; var a$$module$test = 1, b$$module$test = 2; (function() { var a; b$$module$test = 4})(); if(module$test.module$exports)module$test=module$test.module$exports");
+        "var a = 1, b = 2;" +
+        "(function() { var a; b = 4})()",
+        "goog.provide('module$test');" +
+        "var module$test = {};" +
+        "var a$$module$test = 1, b$$module$test = 2;" +
+        "(function() { var a; b$$module$test = 4})();" +
+        "if(module$test.module$exports)" +
+        "module$test=module$test.module$exports");
   }
 
   public void testDash() {
     setFilename("test-test");
     test(
         "var name = require('name'); exports.foo = 1;",
-        "goog.provide('module$test_test'); var module$test_test = {}; goog.require('module$name'); var name$$module$test_test = module$name; module$test_test.foo = 1;if(module$test_test.module$exports)module$test_test=module$test_test.module$exports");
+        "goog.provide('module$test_test');" +
+        "var module$test_test = {};" +
+        "goog.require('module$name');" +
+        "var name$$module$test_test = module$name;" +
+        "module$test_test.foo = 1;" +
+        "if(module$test_test.module$exports)" +
+        "module$test_test=module$test_test.module$exports");
   }
 
   public void testModuleName() {
@@ -83,10 +123,19 @@ public class ProcessCommonJSModulesTest extends CompilerTestCase {
     setFilename("foo/bar");
     test(
         "var name = require('name');",
-        "goog.provide('module$foo$bar'); var module$foo$bar = {}; goog.require('module$name'); var name$$module$foo$bar = module$name; if(module$foo$bar.module$exports)module$foo$bar=module$foo$bar.module$exports");
+        "goog.provide('module$foo$bar'); var module$foo$bar = {};" +
+        "goog.require('module$name');" +
+        "var name$$module$foo$bar = module$name;" +
+        "if(module$foo$bar.module$exports)" +
+        "module$foo$bar=module$foo$bar.module$exports");
     test(
         "var name = require('./name');",
-        "goog.provide('module$foo$bar'); var module$foo$bar = {}; goog.require('module$foo$name'); var name$$module$foo$bar = module$foo$name; if(module$foo$bar.module$exports)module$foo$bar=module$foo$bar.module$exports");
+        "goog.provide('module$foo$bar');" +
+        "var module$foo$bar = {};" +
+        "goog.require('module$foo$name');" +
+        "var name$$module$foo$bar = module$foo$name;" +
+        "if(module$foo$bar.module$exports)" +
+        "module$foo$bar=module$foo$bar.module$exports");
 
   }
 }

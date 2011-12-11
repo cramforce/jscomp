@@ -34,15 +34,23 @@ public class TransformAMDToCJSModuleTest extends CompilerTestCase {
     test("define(['foo', 'bar'], function(foo, bar) { foo(bar); bar+1; })",
         "var foo=require('foo'); var bar=require('bar');foo(bar);bar+1");
     test("define(['foo', 'bar'], function(foo, bar, baz) { foo(bar); bar+1; })",
-        "var foo=require('foo'); var bar=require('bar');var baz = null;foo(bar);bar+1");
+        "var foo=require('foo'); var bar=require('bar');" +
+        "var baz = null;foo(bar);bar+1");
     test("define(['foo', 'bar'], function(foo, bar) { return { test: 1 } })",
-        "var foo=require('foo'); var bar=require('bar');module.exports={test:1}");
-    test("define(['foo', 'bar'], function(foo, bar, exports) { return { test: 1 } })",
-        "var foo=require('foo'); var bar=require('bar');module.exports={test:1}");
-    test("define(['foo', 'bar'], function(foo, bar, exports, module) { return { test: 1 } })",
-        "var foo=require('foo'); var bar=require('bar');module.exports={test:1}");
-    test("define(['foo', 'bar'], function(foo, bar, exports, module, baz) { return { test: 1 } })",
-        "var foo=require('foo'); var bar=require('bar');var baz = null;module.exports={test:1}");
+        "var foo=require('foo'); var bar=require('bar');" +
+        "module.exports={test:1}");
+    test("define(['foo', 'bar'], function(foo, bar, exports) { " +
+        "return { test: 1 } })",
+        "var foo=require('foo'); var bar=require('bar');" +
+        "module.exports={test:1}");
+    test("define(['foo', 'bar'], function(foo, bar, exports, module) { " +
+        "return { test: 1 } })",
+        "var foo=require('foo'); var bar=require('bar');" +
+        "module.exports={test:1}");
+    test("define(['foo', 'bar'], function(foo, bar, exports, module, baz) { " +
+        "return { test: 1 } })",
+        "var foo=require('foo'); var bar=require('bar');var baz = null;" +
+        "module.exports={test:1}");
     test("define(['foo', 'bar'], function(foo) { return { test: 1 } })",
         "var foo=require('foo'); require('bar'); module.exports={test:1}");
     test("define(['foo', 'bar'], function(test) { return { test: 1 } })",
@@ -51,10 +59,14 @@ public class TransformAMDToCJSModuleTest extends CompilerTestCase {
 
   public void testVarRenaming() {
     final String suffix = TransformAMDToCJSModule.VAR_RENAME_SUFFIX;
-    test("var foo; define(['foo', 'bar'], function(foo, bar) { foo(bar); bar+1; })",
-        "var foo; var foo" + suffix +"0=require('foo'); var bar=require('bar');foo" + suffix +"0(bar);bar+1");
-    test("function foo() {}; define(['foo', 'bar'], function(foo, bar) { foo(bar); bar+1; })",
-        "function foo() {}; var foo" + suffix +"0=require('foo'); var bar=require('bar');foo" + suffix +"0(bar);bar+1");
+    test("var foo; define(['foo', 'bar'], function(foo, bar) { " +
+        "foo(bar); bar+1; })",
+        "var foo; var foo" + suffix +"0=require('foo');" +
+        "var bar=require('bar');foo" + suffix +"0(bar);bar+1");
+    test("function foo() {}; define(['foo', 'bar'], " +
+        "function(foo, bar) { foo(bar); bar+1; })",
+        "function foo() {}; var foo" + suffix +"0=require('foo'); " +
+        "var bar=require('bar');foo" + suffix +"0(bar);bar+1");
   }
 
   public void testDefineOnlyFunction() {
@@ -101,7 +113,8 @@ public class TransformAMDToCJSModuleTest extends CompilerTestCase {
   }
 
   private void testNonTopLevelDefine(String js) {
-    test(js, null, TransformAMDToCJSModule.NON_TOP_LEVEL_STATEMENT_DEFINE_ERROR);
+    test(js, null,
+        TransformAMDToCJSModule.NON_TOP_LEVEL_STATEMENT_DEFINE_ERROR);
   }
 
 }
