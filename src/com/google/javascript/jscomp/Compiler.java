@@ -1190,7 +1190,7 @@ public class Compiler extends AbstractCompiler {
         externsRoot.addChildToBack(n);
       }
 
-   // Modules inferred in ProcessCommonJS pass.
+      // Modules inferred in ProcessCommonJS pass.
       if (options.transformAMDToCJSModules || options.processCommonJSModules) {
         processAMDAndCommonJSModules();
       }
@@ -1333,14 +1333,15 @@ public class Compiler extends AbstractCompiler {
       }
     }
     try {
-      // Help, I need a better way to get modules in dependency order :)
-      modules = Lists.newArrayList();
-      for (CompilerInput input : this.moduleGraph.manageDependencies(
-          options.manageClosureDependenciesEntryPoints, inputs)) {
-        modules.add(modulesByInput.get(input));
+      if (options.manageClosureDependencies) {
+        modules = Lists.newArrayList();
+        for (CompilerInput input : this.moduleGraph.manageDependencies(
+            options.manageClosureDependenciesEntryPoints, inputs)) {
+          modules.add(modulesByInput.get(input));
+        }
+        this.modules = modules;
+        this.moduleGraph = new JSModuleGraph(modules);
       }
-      this.modules = modules;
-      this.moduleGraph = new JSModuleGraph(modules);
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
