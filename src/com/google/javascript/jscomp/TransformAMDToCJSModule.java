@@ -17,6 +17,7 @@ package com.google.javascript.jscomp;
 
 import java.util.Iterator;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
 import com.google.javascript.rhino.IR;
@@ -178,7 +179,7 @@ class TransformAMDToCJSModule implements CompilerPass {
 
       String aliasName = aliasNode != null ? aliasNode.getString() : null;
       Scope globalScope = t.getScope();
-      if(aliasName != null &&
+      if (aliasName != null &&
           globalScope.isDeclared(aliasName, true)) {
         while (true) {
           String renamed = aliasName + VAR_RENAME_SUFFIX + renameIndex;
@@ -295,6 +296,7 @@ class TransformAMDToCJSModule implements CompilerPass {
     public void visit(NodeTraversal t, Node n, Node parent) {
       if (n.isName() && from.equals(n.getString())) {
         n.setString(to);
+        n.putProp(Node.ORIGINALNAME_PROP, from);
       }
     }
   }

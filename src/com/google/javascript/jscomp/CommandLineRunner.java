@@ -302,7 +302,7 @@ public class CommandLineRunner extends
         + "PRETTY_PRINT, PRINT_INPUT_DELIMITER")
     private List<FormattingOption> formatting = Lists.newArrayList();
 
-    @Option(name = "--process_cjs_modules",
+    @Option(name = "--process_common_js_modules",
         usage = "Process CJS modules to a concatenable form.")
     private boolean process_cjs_modules = false;
 

@@ -110,7 +110,7 @@ public class JSModule implements DependencyInfo, Serializable {
    * already be associated with a module. Otherwise use
    * add(CompilerInput input).
    */
-  public void addAndOverrideModule(CompilerInput input) {
+  void addAndOverrideModule(CompilerInput input) {
     inputs.add(input);
     input.overrideModule(this);
   }

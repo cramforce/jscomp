@@ -48,6 +48,7 @@ public class CommandLineRunnerTest extends TestCase {
   private List<Integer> exitCodes = null;
   private ByteArrayOutputStream outReader = null;
   private ByteArrayOutputStream errReader = null;
+  private Map<Integer,String> filenames;
 
   // If set, this will be appended to the end of the args list.
   // For testing args parsing.
@@ -904,20 +905,24 @@ public class CommandLineRunnerTest extends TestCase {
   }
 
   public void testProcessCJS() {
-    args.add("--process_cjs_modules");
+    args.add("--process_common_js_modules");
     args.add("--common_js_entry_module=foo/bar");
     setFilename(0, "foo/bar.js");
     test("exports.test = 1",
-        "var module$foo$bar={test:1}; module$foo$bar.module$exports && (module$foo$bar=module$foo$bar.module$exports)");
+        "var module$foo$bar={test:1}; " +
+        "module$foo$bar.module$exports && " +
+        "(module$foo$bar=module$foo$bar.module$exports)");
   }
 
   public void testTransformAMDAndProcessCJS() {
     args.add("--transform_amd_modules");
-    args.add("--process_cjs_modules");
+    args.add("--process_common_js_modules");
     args.add("--common_js_entry_module=foo/bar");
     setFilename(0, "foo/bar.js");
     test("define({foo: 1})",
-        "var module$foo$bar={}, module$foo$bar={foo:1}; module$foo$bar.module$exports && (module$foo$bar=module$foo$bar.module$exports)");
+        "var module$foo$bar={}, module$foo$bar={foo:1}; " +
+        "module$foo$bar.module$exports && " +
+        "(module$foo$bar=module$foo$bar.module$exports)");
   }
 
   /* Helper functions */
@@ -1033,19 +1038,6 @@ public class CommandLineRunnerTest extends TestCase {
         new PrintStream(errReader));
   }
 
-  private Map<Integer,String> filenames;
-
-  private void setFilename(int i, String filename) {
-    this.filenames.put(i, filename);
-  }
-
-  private String getFilename(int i) {
-    if (filenames.isEmpty()) {
-      return "input" + i;
-    }
-    return filenames.get(i);
-  }
-
   private Compiler compile(String[] original) {
     CommandLineRunner runner = createCommandLineRunner(original);
     assertTrue(runner.shouldRunCompiler());
@@ -1103,5 +1095,16 @@ public class CommandLineRunnerTest extends TestCase {
     Preconditions.checkNotNull(all);
     Node n = all.getLastChild();
     return n;
+  }
+
+  private void setFilename(int i, String filename) {
+    this.filenames.put(i, filename);
+  }
+
+  private String getFilename(int i) {
+    if (filenames.isEmpty()) {
+      return "input" + i;
+    }
+    return filenames.get(i);
   }
 }

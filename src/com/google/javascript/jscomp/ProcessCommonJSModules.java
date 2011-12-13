@@ -17,6 +17,8 @@ package com.google.javascript.jscomp;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+
+import com.google.common.base.Preconditions;
 import com.google.javascript.jscomp.NodeTraversal.AbstractPostOrderCallback;
 import com.google.javascript.rhino.IR;
 import com.google.javascript.rhino.Node;
@@ -68,7 +70,7 @@ class ProcessCommonJSModules implements CompilerPass {
    * For every file that is being processed this returns the module that
    * created for it.
    */
-  public JSModule getModule() {
+  JSModule getModule() {
     return module;
   }
 
@@ -117,6 +119,8 @@ class ProcessCommonJSModules implements CompilerPass {
   private class ProcessCommonJsModulesCallback extends
       AbstractPostOrderCallback {
 
+    private int scriptNodeCount = 0;
+
     @Override
     public void visit(NodeTraversal t, Node n, Node parent) {
       if (n.isCall() && n.getChildCount() == 2 &&
@@ -126,13 +130,12 @@ class ProcessCommonJSModules implements CompilerPass {
       }
 
       if (n.isScript()) {
-        visitScript(n);
+        scriptNodeCount++;
+        visitScript(t, n);
       }
 
-      if (n.isGetProp() && n.getChildAtIndex(0).isName() &&
-          "module".equals(n.getChildAtIndex(0).getString()) &&
-          n.getChildAtIndex(1).isString() &&
-          "exports".equals(n.getChildAtIndex(1).getString())) {
+      if (n.isGetProp() &&
+          "module.exports".equals(n.getQualifiedName())) {
         visitModuleExports(n);
       }
     }
@@ -148,7 +151,7 @@ class ProcessCommonJSModules implements CompilerPass {
       parent.replaceChild(require, moduleRef);
       Node script = getCurrentScriptNode(parent);
       if (reportDependencies) {
-        compiler.getInput(script.getInputId()).addRequire(moduleName);
+        t.getInput().addRequire(moduleName);
       }
       // Rewrite require("name").
       script.addChildToFront(IR.exprResult(
@@ -160,17 +163,17 @@ class ProcessCommonJSModules implements CompilerPass {
     /**
      * Emit goog.provide and add suffix to all global vars to avoid conflicts
      * with other modules.
-     *
-     * @param script
      */
-    private void visitScript(Node script) {
+    private void visitScript(NodeTraversal t, Node script) {
+      Preconditions.checkArgument(scriptNodeCount == 1,
+          "ProcessCommonJSModules supports only one invocation per " +
+          "CompilerInput / script node");
       String moduleName = guessCJSModuleName(normalizeSourceName(script
           .getSourceFileName()));
       script.addChildToFront(IR.var(IR.name(moduleName), IR.objectlit())
           .copyInformationFromForTree(script));
-      // System.out.println("Provide " + moduleName);
       if (reportDependencies) {
-        CompilerInput ci = compiler.getInput(script.getInputId());
+        CompilerInput ci = t.getInput();
         ci.addProvide(moduleName);
         JSModule m = new JSModule(moduleName);
         m.addAndOverrideModule(ci);
@@ -251,6 +254,7 @@ class ProcessCommonJSModules implements CompilerPass {
           Scope.Var var = t.getScope().getVar(name);
           if (var != null && var.isGlobal()) {
             n.setString(name + "$$" + suffix);
+            n.putProp(Node.ORIGINALNAME_PROP, name);
           }
         }
       }

@@ -186,12 +186,14 @@ public class CompilerInput
     }
   }
 
-  public void addProvide(String provide) {
+  // TODO(nicksantos): Remove addProvide/addRequire/removeRequire once
+  // there is better support for discovering non-closure dependencies.
+  void addProvide(String provide) {
     getProvides();
     provides.add(provide);
   }
 
-  public void addRequire(String require) {
+  void addRequire(String require) {
     getRequires();
     requires.add(require);
   }
@@ -329,7 +331,7 @@ public class CompilerInput
   }
 
   /** Overrides the module to which the input belongs. */
-  public void overrideModule(JSModule module) {
+  void overrideModule(JSModule module) {
     this.module = module;
   }
 
